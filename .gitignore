@@ -1,0 +1,6 @@
+# Build artefacts
+sgy-connect-*.zip
+*.log
+.DS_Store
+node_modules/
+vendor/

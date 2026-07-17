@@ -1,0 +1,32 @@
+/* Surplus GY Connect — admin styles. Brand: CTA orange #D9531A, navy #0B1733. */
+.sgy-connect .sgy-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    background: #eef2f7;
+    color: #0B1733;
+}
+.sgy-connect .sgy-badge-live { background: #dcfce7; color: #15803d; }
+.sgy-connect .sgy-badge-staging { background: #fef3c7; color: #b45309; }
+
+.sgy-connect .sgy-progress {
+    background: #eef2f7;
+    border-radius: 8px;
+    height: 22px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+.sgy-connect .sgy-progress-bar {
+    background: #D9531A;
+    color: #fff;
+    height: 100%;
+    width: 0;
+    text-align: center;
+    line-height: 22px;
+    font-size: 12px;
+    transition: width .25s ease;
+}
+.sgy-connect .sgy-summary { margin-top: 8px; color: #0B1733; }
+.sgy-connect .button.button-primary { background: #D9531A; border-color: #C24E14; }
+.sgy-connect .button.button-primary:hover { background: #C24E14; border-color: #C24E14; }
