@@ -85,12 +85,17 @@ class SGY_Connect_Webhook
         if (! $product) {
             return;
         }
-        $newStock = max(0, (int) $data['new_stock']);
-        if ($product->managing_stock() && (int) $product->get_stock_quantity() === $newStock) {
-            return; // already in step: do nothing (breaks the echo loop)
-        }
+        // Respect a product the vendor deliberately does NOT stock-manage (unlimited / made-to-order):
+        // never silently convert it to a managed 0 and take it out of sale. Two-way stock only applies to
+        // products that already manage stock.
         if (! $product->managing_stock()) {
-            $product->set_manage_stock(true);
+            SGY_Connect_Logger::log('inbound', 'order.stock_decrement', 'skipped', 'product ' . $productId . ' does not manage stock; left unchanged', $correlationId);
+
+            return;
+        }
+        $newStock = max(0, (int) $data['new_stock']);
+        if ((int) $product->get_stock_quantity() === $newStock) {
+            return; // already in step: do nothing (breaks the echo loop)
         }
         $product->set_stock_quantity($newStock);
         $product->save();

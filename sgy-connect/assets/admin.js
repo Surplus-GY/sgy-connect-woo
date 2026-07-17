@@ -11,10 +11,15 @@
         var $out = $('#sgy-health-result').text('…');
         post('sgy_connect_health').done(function (r) {
             if (r && r.success) {
-                $out.html('<span style="color:#15803d">✔ ' + (r.data.message || 'Connected') +
-                    ' (' + (r.data.environment || '') + ')</span>');
+                // Build with text nodes: the message/environment come from the remote API and must never
+                // be injected as HTML (avoids DOM XSS if the API host or a base override is hostile).
+                var $ok = $('<span>').css('color', '#15803d')
+                    .text('OK ' + (r.data.message || 'Connected') + ' (' + (r.data.environment || '') + ')');
+                $out.empty().append($ok);
             } else {
-                $out.html('<span style="color:#b91c1c">x ' + ((r && r.data && r.data.message) || 'Failed') + '</span>');
+                var $err = $('<span>').css('color', '#b91c1c')
+                    .text('x ' + ((r && r.data && r.data.message) || 'Failed'));
+                $out.empty().append($err);
             }
         }).fail(function () { $out.html('<span style="color:#b91c1c">Request failed</span>'); });
     });

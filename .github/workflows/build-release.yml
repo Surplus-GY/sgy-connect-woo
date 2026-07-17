@@ -33,11 +33,12 @@ jobs:
           find sgy-connect -name '*.php' -print0 | xargs -0 -n1 php -l
 
       - name: Build zip
+        # Zip WITH the top-level sgy-connect/ folder: WordPress installs a plugin into a directory named
+        # after the zip's top entry, so the archive must contain sgy-connect/ (not its bare contents).
         run: |
-          cd sgy-connect
-          zip -r "../sgy-connect-${GITHUB_REF_NAME}.zip" . -x '*.git*'
-          cd ..
+          zip -r "sgy-connect-${GITHUB_REF_NAME}.zip" sgy-connect -x '*.git*'
           ls -la sgy-connect-*.zip
+          unzip -l "sgy-connect-${GITHUB_REF_NAME}.zip" | head -5
 
       - name: Attach zip to the release
         uses: softprops/action-gh-release@v2

@@ -20,6 +20,30 @@ class SGY_Connect_Updater
     {
         add_filter('pre_set_site_transient_update_plugins', [$this, 'inject_update']);
         add_filter('plugins_api', [$this, 'plugin_info'], 20, 3);
+        add_filter('upgrader_source_selection', [$this, 'fix_source_dir'], 10, 4);
+    }
+
+    /**
+     * GitHub's source zipball extracts to a commit-named folder (e.g. Surplus-GY-sgy-connect-woo-<sha>/),
+     * and even an asset zip may not be named "sgy-connect". WordPress installs a plugin into a folder named
+     * after the zip's top directory, so without this the update would land in the wrong folder and
+     * deactivate the plugin. Rename the extracted source to the plugin's own slug during OUR update only.
+     */
+    public function fix_source_dir($source, $remote_source, $upgrader, $hook_extra = [])
+    {
+        if (empty($hook_extra['plugin']) || $hook_extra['plugin'] !== SGY_CONNECT_BASENAME) {
+            return $source;
+        }
+        $desired = trailingslashit($remote_source) . 'sgy-connect';
+        if (untrailingslashit($source) === untrailingslashit($desired)) {
+            return $source;
+        }
+        global $wp_filesystem;
+        if ($wp_filesystem && $wp_filesystem->move($source, $desired, true)) {
+            return trailingslashit($desired);
+        }
+
+        return $source;
     }
 
     private function latest_release()

@@ -72,9 +72,12 @@ class SGY_Connect_Sync
         as_schedule_single_action(time() + 5, self::HOOK, ['product_id' => $productId], self::GROUP);
     }
 
+    const MAX_ATTEMPTS = 5;
+
     /** The queued worker: PATCH the product's synced fields to Surplus. */
-    public function push($productId)
+    public function push($productId, $attempt = 1)
     {
+        $attempt = is_array($productId) && isset($productId['attempt']) ? (int) $productId['attempt'] : (int) $attempt;
         $productId = is_array($productId) && isset($productId['product_id']) ? (int) $productId['product_id'] : (int) $productId;
         $sgyId = get_post_meta($productId, '_sgy_product_id', true);
         if (! $sgyId) {
@@ -91,13 +94,14 @@ class SGY_Connect_Sync
             'long_description' => wp_strip_all_tags($product->get_description() ?: $product->get_short_description()),
             'price'            => $product->get_regular_price(),
             'currency'         => get_woocommerce_currency(),
-            'stock'            => $product->managing_stock() ? (int) $product->get_stock_quantity() : 0,
-            'status'           => ($product->get_status() === 'publish' && $product->is_visible()) ? 1 : 0,
+            // A non-stock-managed product is unlimited: send a large in-stock quantity, not a literal 0.
+            'stock'            => $product->managing_stock() ? (int) $product->get_stock_quantity() : ($product->get_stock_status() === 'outofstock' ? 0 : 999998),
+            // Surplus listing on/off = the product is PUBLISHED. Do NOT use is_visible(): a catalogue-hidden
+            // (search-only) product is still for sale and must not be unpublished on Surplus.
+            'status'           => $product->get_status() === 'publish' ? 1 : 0,
+            // Always send discounted_price (null clears it), so removing a Woo sale propagates to Surplus.
+            'discounted_price' => ($sale = $product->get_sale_price()) !== '' ? $sale : null,
         ];
-        $sale = $product->get_sale_price();
-        if ($sale !== '') {
-            $payload['discounted_price'] = $sale;
-        }
 
         // The Surplus-owned panel fields (if the vendor filled them) go under 'surplus'.
         $surplus = [];
@@ -118,10 +122,18 @@ class SGY_Connect_Sync
             }
             SGY_Connect_Logger::log('outbound', 'sync', 'ok', 'product ' . $productId . ' synced', isset($res['data']['correlation_id']) ? $res['data']['correlation_id'] : '');
         } else {
-            SGY_Connect_Logger::log('outbound', 'sync', 'error', 'product ' . $productId . ': ' . $res['error']);
-            // Let Action Scheduler retry a transient failure by throwing.
-            if ($res['status'] === 0 || $res['status'] >= 500) {
-                throw new \Exception('sync failed, will retry: ' . $res['error']);
+            SGY_Connect_Logger::log('outbound', 'sync', 'error', 'product ' . $productId . ': ' . $res['error'] . ' (attempt ' . $attempt . ')');
+            // A transient failure (network / 5xx) is retried by EXPLICITLY rescheduling with backoff:
+            // Action Scheduler does NOT auto-retry a scheduled single action on an exception, so throwing
+            // would just mark it failed and drop the update. A 4xx is a permanent client error: do not retry.
+            if (($res['status'] === 0 || $res['status'] >= 500) && $attempt < self::MAX_ATTEMPTS && function_exists('as_schedule_single_action')) {
+                $delays = [30, 120, 600, 1800];
+                as_schedule_single_action(
+                    time() + ($delays[$attempt - 1] ?? 1800),
+                    self::HOOK,
+                    ['product_id' => $productId, 'attempt' => $attempt + 1],
+                    self::GROUP
+                );
             }
         }
     }

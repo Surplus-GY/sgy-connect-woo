@@ -20,12 +20,19 @@ class SGY_Connect_Importer
         $this->client = $client;
     }
 
-    /** How many published simple products exist (drives the wizard's progress bar). */
+    /** How many published SIMPLE products exist (only these import; drives the wizard's progress bar). */
     public function total()
     {
-        $counts = wp_count_posts('product');
+        $q = new WP_Query([
+            'post_type'      => 'product',
+            'post_status'    => 'publish',
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+            'no_found_rows'  => false,
+            'tax_query'      => [[ 'taxonomy' => 'product_type', 'field' => 'slug', 'terms' => 'simple' ]],
+        ]);
 
-        return isset($counts->publish) ? (int) $counts->publish : 0;
+        return (int) $q->found_posts;
     }
 
     /**
@@ -110,9 +117,10 @@ class SGY_Connect_Importer
             'price'            => $product->get_regular_price(),
             'currency'         => get_woocommerce_currency(),
             'discounted_price' => $product->get_sale_price() ?: null,
-            'stock'            => $product->managing_stock() ? (int) $product->get_stock_quantity() : 0,
+            'stock'            => $this->stock_of($product),
             'brand'            => $this->brand_of($product),
-            'upc'              => $product->get_global_unique_id(),
+            // get_global_unique_id() only exists from WooCommerce 9.2; fall back to the meta on older Woo.
+            'upc'              => method_exists($product, 'get_global_unique_id') ? $product->get_global_unique_id() : (string) $product->get_meta('_global_unique_id'),
             'max_weight'       => $this->to_kg($product->get_weight()),
             'source_category'  => $this->primary_category_slug($productId),
             'images'           => $images,
@@ -150,6 +158,20 @@ class SGY_Connect_Importer
             update_post_meta($pid, '_sgy_missing', isset($r['missing_fields']) ? (array) $r['missing_fields'] : []);
             update_post_meta($pid, '_sgy_approval', isset($r['approval']) ? $r['approval'] : '');
         }
+    }
+
+    /**
+     * The stock to send Surplus. A product that does NOT manage stock is deliberately unlimited: send a
+     * large in-stock quantity (or 0 only if its status is out of stock) rather than a literal 0, which
+     * would wrongly make it unbuyable on Surplus.
+     */
+    private function stock_of($product)
+    {
+        if ($product->managing_stock()) {
+            return (int) $product->get_stock_quantity();
+        }
+
+        return $product->get_stock_status() === 'outofstock' ? 0 : 999998; // Surplus's max stock = "unlimited"
     }
 
     private function brand_of($product)

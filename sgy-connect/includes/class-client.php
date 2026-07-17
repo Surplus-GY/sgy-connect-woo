@@ -112,12 +112,17 @@ class SGY_Connect_Client
             'Accept'          => 'application/json',
         ];
         if (in_array(strtoupper($method), ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
-            // A stable idempotency key must be UNIQUE per (operation, payload): the server 409s a reused
-            // key that arrives with a different method/path/body, so derive it from the request itself.
             $headers['Content-Type'] = 'application/json';
+            // A FRESH key per call by default. The idempotency key must identify one user-initiated
+            // ATTEMPT, never the content: a content-derived key made the server dedup legitimately-distinct
+            // operations (a force-sync re-run, or a stock/price value returning to an earlier state, would
+            // replay a stale 48h-cached response and silently do nothing). Store Connect is app-level
+            // idempotent anyway (import upserts by external_id, sync/patch is a set-operation, force-sync is
+            // meant to re-run), so re-executing a genuine retry is safe. A caller may still pass an explicit
+            // stable key to dedup a specific retry of the exact same logical job.
             $headers['X-SGY-Idempotency'] = $idempotencyKey !== null
                 ? $idempotencyKey
-                : substr(hash('sha256', $method . $pathWithQuery . $rawBody), 0, 48);
+                : (function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : bin2hex(random_bytes(16)));
         }
 
         $args = [
