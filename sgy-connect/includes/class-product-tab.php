@@ -22,45 +22,127 @@ class SGY_Connect_Product_Tab
 
     public function register()
     {
-        add_filter('woocommerce_product_data_tabs', [$this, 'add_tab']);
-        add_action('woocommerce_product_data_panels', [$this, 'render_panel']);
+        // Surplus fields render right under the WooCommerce "General" tab (not a separate tab), so the
+        // vendor fills them alongside price and SKU. Dropdowns + required markers + help tips; dimensions
+        // and weight are reused from Woo's own Shipping tab so nothing is typed twice.
+        add_action('woocommerce_product_options_general_product_data', [$this, 'render_general_fields']);
         add_action('woocommerce_process_product_meta', [$this, 'save'], 20);
 
         add_filter('manage_edit-product_columns', [$this, 'add_column']);
         add_action('manage_product_posts_custom_column', [$this, 'render_column'], 10, 2);
     }
 
-    public function add_tab($tabs)
+    /** Render the Surplus-owned fields inside the General product-data panel. */
+    public function render_general_fields()
     {
-        $tabs['sgy_connect'] = [
-            'label'  => __('Surplus GY', 'sgy-connect'),
-            'target' => 'sgy_connect_product_data',
-            'class'  => [],
-            'priority' => 80,
-        ];
+        echo '<div class="options_group sgy-general-fields">';
 
-        return $tabs;
-    }
-
-    public function render_panel()
-    {
-        global $post;
         if (! $this->client->is_configured()) {
-            echo '<div id="sgy_connect_product_data" class="panel woocommerce_options_panel"><p style="padding:12px">' .
-                esc_html__('Connect this store to Surplus GY first (Surplus GY → Connect).', 'sgy-connect') . '</p></div>';
+            echo '<p class="form-field" style="color:#666">' .
+                esc_html__('Connect this store to Surplus GY to fill its extra product fields (Surplus GY → Connect).', 'sgy-connect') .
+                '</p></div>';
 
             return;
         }
 
         $schema = ( new SGY_Connect_Schema($this->client) )->get();
-        $fields = $schema && isset($schema['fields']) ? $schema['fields'] : [];
+        $fields = $this->index_fields($schema && isset($schema['fields']) ? $schema['fields'] : []);
         $categories = $schema && isset($schema['categories']) ? $schema['categories'] : [];
-        $missing = (array) get_post_meta($post->ID, '_sgy_missing', true);
-        $sgyProductId = get_post_meta($post->ID, '_sgy_product_id', true);
-        $approval = get_post_meta($post->ID, '_sgy_approval', true);
-        $state = get_post_meta($post->ID, '_sgy_state', true);
 
-        include SGY_CONNECT_DIR . 'views/product-tab.php';
+        // Category dropdown from the Surplus category tree.
+        $catOptions = ['' => __('— Select a Surplus category —', 'sgy-connect')];
+        foreach ($categories as $c) {
+            $catOptions[(string) $c['id']] = $c['title'];
+        }
+
+        // Country dropdown from WooCommerce's own country list (no typing).
+        $countries = ['' => __('— Select —', 'sgy-connect')];
+        if (function_exists('WC') && WC()->countries) {
+            foreach (WC()->countries->get_countries() as $name) {
+                $countries[(string) $name] = $name;
+            }
+        }
+
+        echo '<p class="form-field"><strong>' . esc_html__('Surplus GY details', 'sgy-connect') . '</strong> — ' .
+            esc_html__('extra information Surplus needs. Required fields are marked with *.', 'sgy-connect') . '</p>';
+
+        woocommerce_wp_select([
+            'id'          => '_sgy_category_id',
+            'label'       => $this->label('category_id', $fields, __('Surplus category', 'sgy-connect')),
+            'options'     => $catOptions,
+            'desc_tip'    => true,
+            'description' => __('Which Surplus GY category this product belongs to.', 'sgy-connect'),
+        ]);
+
+        woocommerce_wp_select([
+            'id'          => '_sgy_country_of_manufacture',
+            'label'       => $this->label('country_of_manufacture', $fields, __('Country of manufacture', 'sgy-connect')),
+            'options'     => $countries,
+            'desc_tip'    => true,
+            'description' => __('Where the product was made.', 'sgy-connect'),
+        ]);
+
+        woocommerce_wp_select([
+            'id'          => '_sgy_product_condition',
+            'label'       => $this->label('product_condition', $fields, __('Condition', 'sgy-connect')),
+            'options'     => ['' => __('— Select —', 'sgy-connect'), '1' => __('New', 'sgy-connect'), '2' => __('Used', 'sgy-connect'), '3' => __('Refurbished', 'sgy-connect')],
+            'desc_tip'    => true,
+            'description' => __('The item condition.', 'sgy-connect'),
+        ]);
+
+        woocommerce_wp_select([
+            'id'          => '_sgy_is_vat_inclusive',
+            'label'       => $this->label('is_vat_inclusive', $fields, __('VAT', 'sgy-connect')),
+            'options'     => ['' => __('— Select —', 'sgy-connect'), '1' => __('Price includes VAT', 'sgy-connect'), '2' => __('No VAT / exempt', 'sgy-connect')],
+            'desc_tip'    => true,
+            'description' => __('Whether the price already includes VAT.', 'sgy-connect'),
+        ]);
+
+        woocommerce_wp_text_input([
+            'id'                => '_sgy_vat_percentage',
+            'label'             => $this->label('vat_percentage', $fields, __('VAT %', 'sgy-connect')),
+            'type'              => 'number',
+            'custom_attributes' => ['step' => '0.01', 'min' => '0'],
+            'desc_tip'          => true,
+            'description'       => __('VAT rate as a percentage, if any.', 'sgy-connect'),
+        ]);
+
+        woocommerce_wp_checkbox([
+            'id'          => '_sgy_is_pharma',
+            'label'       => __('Pharmaceutical', 'sgy-connect'),
+            'description' => __('Tick if this is a pharmaceutical product.', 'sgy-connect'),
+        ]);
+
+        echo '<p class="form-field" style="color:#666"><em>' .
+            esc_html__('Dimensions and weight come from the WooCommerce Shipping tab, so there is no need to enter them again here.', 'sgy-connect') .
+            '</em></p>';
+
+        echo '</div>';
+    }
+
+    /** Key the /schema fields array by their key so we can read label/required per field. */
+    private function index_fields($fields)
+    {
+        $byKey = [];
+        foreach ((array) $fields as $f) {
+            if (isset($f['key'])) {
+                $byKey[$f['key']] = $f;
+            }
+        }
+
+        return $byKey;
+    }
+
+    /** Field label from the schema (fallback to $default), with a trailing * when the field is required. */
+    private function label($key, $fields, $default)
+    {
+        $f = isset($fields[$key]) ? $fields[$key] : null;
+        $label = ($f && ! empty($f['label'])) ? $f['label'] : $default;
+        if ($f && ! empty($f['required'])) {
+            $label .= ' *';
+        }
+
+        return $label;
     }
 
     /** Only the Surplus-owned fields are editable here; the synced fields come from Woo's own inputs. */
@@ -69,15 +151,17 @@ class SGY_Connect_Product_Tab
         if (! current_user_can('edit_post', $postId)) {
             return;
         }
-        // Nonce: Woo's own product save nonce covers this metabox submit.
-        foreach (['category_id', 'max_length', 'max_width', 'max_height', 'country_of_manufacture', 'vat_percentage', 'product_condition'] as $key) {
+        // Nonce: Woo's own product save nonce covers this metabox submit. Dimensions/weight are NOT saved
+        // here any more — they come from Woo's native Shipping fields (the importer reads them directly).
+        foreach (['category_id', 'country_of_manufacture', 'vat_percentage', 'product_condition'] as $key) {
             if (isset($_POST['_sgy_' . $key])) {
                 update_post_meta($postId, '_sgy_' . $key, sanitize_text_field(wp_unslash($_POST['_sgy_' . $key])));
             }
         }
-        // Selects/booleans that may legitimately be 0.
-        update_post_meta($postId, '_sgy_is_vat_inclusive', isset($_POST['_sgy_is_vat_inclusive']) ? (int) $_POST['_sgy_is_vat_inclusive'] : '');
-        update_post_meta($postId, '_sgy_is_pharma', isset($_POST['_sgy_is_pharma']) ? 1 : 0);
+        // Selects/booleans that may legitimately be 0/empty.
+        update_post_meta($postId, '_sgy_is_vat_inclusive', (isset($_POST['_sgy_is_vat_inclusive']) && $_POST['_sgy_is_vat_inclusive'] !== '') ? (int) $_POST['_sgy_is_vat_inclusive'] : '');
+        // woocommerce_wp_checkbox posts 'yes' when ticked.
+        update_post_meta($postId, '_sgy_is_pharma', (isset($_POST['_sgy_is_pharma']) && $_POST['_sgy_is_pharma'] === 'yes') ? 1 : 0);
 
         // Push immediately so the checklist updates while the vendor is still in the editor.
         if (get_post_meta($postId, '_sgy_product_id', true)) {
