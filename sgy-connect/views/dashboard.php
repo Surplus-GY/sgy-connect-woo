@@ -37,21 +37,13 @@ $steps = [
         'cta'   => __('Send to Surplus', 'sgy-connect'),
         'url'   => admin_url('admin.php?page=sgy-connect-import'),
     ],
-    [
-        'done'  => $configured && $webhookReady && $linkedCount > 0,
-        'title' => __('Live two-way sync', 'sgy-connect'),
-        'body'  => ($configured && $webhookReady)
-            ? __('Sync is active. Add or change a product on either side and it updates on the other automatically.', 'sgy-connect')
-            : __('Once connected, changes on either side sync instantly. Nothing to configure.', 'sgy-connect'),
-        'cta'   => __('View sync log', 'sgy-connect'),
-        'url'   => admin_url('admin.php?page=sgy-connect-logs'),
-    ],
 ];
 
 $doneCount = count(array_filter($steps, static function ($s) { return $s['done']; }));
 $pct = (int) round(($doneCount / count($steps)) * 100);
 ?>
 <div class="wrap sgy-connect">
+    <?php include SGY_CONNECT_DIR . "views/header.php"; ?>
     <h1><?php esc_html_e('Surplus GY', 'sgy-connect'); ?></h1>
     <p class="description"><?php esc_html_e('Connect this store to Surplus GY, import products either way, and keep both in step automatically.', 'sgy-connect'); ?></p>
 
@@ -72,4 +64,12 @@ $pct = (int) round(($doneCount / count($steps)) * 100);
             </li>
         <?php endforeach; ?>
     </ol>
+
+    <?php if ($configured && $webhookReady) : ?>
+        <p class="sgy-sync-note">
+            <span class="dashicons dashicons-update"></span>
+            <?php esc_html_e('Live two-way sync is active — changes on either side update the other automatically.', 'sgy-connect'); ?>
+            <a href="<?php echo esc_url(admin_url('admin.php?page=sgy-connect-logs')); ?>"><?php esc_html_e('View sync log', 'sgy-connect'); ?></a>
+        </p>
+    <?php endif; ?>
 </div>

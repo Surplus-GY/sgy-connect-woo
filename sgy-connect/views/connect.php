@@ -5,6 +5,7 @@ if (! defined('ABSPATH')) {
 }
 ?>
 <div class="wrap sgy-connect">
+    <?php include SGY_CONNECT_DIR . "views/header.php"; ?>
     <h1><?php esc_html_e('Surplus GY Connect', 'sgy-connect'); ?></h1>
     <p class="description">
         <?php esc_html_e('Create a store connection on your Surplus GY vendor dashboard (Connected Stores), then paste the Key ID and Secret here. The key decides the environment automatically.', 'sgy-connect'); ?>

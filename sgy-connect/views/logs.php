@@ -5,6 +5,7 @@ if (! defined('ABSPATH')) {
 }
 ?>
 <div class="wrap sgy-connect">
+    <?php include SGY_CONNECT_DIR . "views/header.php"; ?>
     <h1><?php esc_html_e('Surplus GY sync log', 'sgy-connect'); ?></h1>
     <p>
         <button type="button" class="button" id="sgy-force-sync"><?php esc_html_e('Force sync now', 'sgy-connect'); ?></button>

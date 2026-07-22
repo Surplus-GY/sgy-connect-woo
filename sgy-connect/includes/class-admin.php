@@ -29,6 +29,9 @@ class SGY_Connect_Admin
         add_action('wp_ajax_sgy_connect_force_sync', [$this, 'ajax_force_sync']);
         add_action('wp_ajax_sgy_connect_surplus_fetch', [$this, 'ajax_surplus_fetch']);
         add_action('wp_ajax_sgy_connect_surplus_import', [$this, 'ajax_surplus_import']);
+        add_action('wp_ajax_sgy_connect_bulk_start', [$this, 'ajax_bulk_start']);
+        add_action('wp_ajax_sgy_connect_bulk_progress', [$this, 'ajax_bulk_progress']);
+        add_action('wp_ajax_sgy_connect_bulk_cancel', [$this, 'ajax_bulk_cancel']);
         add_action('admin_enqueue_scripts', [$this, 'assets']);
     }
 
@@ -169,6 +172,32 @@ class SGY_Connect_Admin
         }
 
         wp_send_json_success($result);
+    }
+
+    /** Start a background import of the WHOLE Surplus catalogue (handles thousands via Action Scheduler). */
+    public function ajax_bulk_start()
+    {
+        $this->guard();
+        $res = ( new SGY_Connect_Bulk($this->client) )->start_all();
+        if (empty($res['ok'])) {
+            wp_send_json_error(['message' => isset($res['message']) ? $res['message'] : __('Could not start the import.', 'sgy-connect')]);
+        }
+        wp_send_json_success($res);
+    }
+
+    /** Poll the background bulk-import progress. */
+    public function ajax_bulk_progress()
+    {
+        $this->guard();
+        wp_send_json_success(SGY_Connect_Bulk::progress());
+    }
+
+    /** Cancel an in-flight background bulk import. */
+    public function ajax_bulk_cancel()
+    {
+        $this->guard();
+        SGY_Connect_Bulk::cancel();
+        wp_send_json_success(['status' => 'cancelled']);
     }
 
     private function guard()

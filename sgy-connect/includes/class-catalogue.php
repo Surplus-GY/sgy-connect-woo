@@ -206,6 +206,16 @@ class SGY_Connect_Catalogue
         return $result;
     }
 
+    /** Register many Surplus->Woo mappings in one call (used by the background bulk import). */
+    public function link_batch(array $pairs)
+    {
+        $pairs = array_values(array_filter($pairs));
+        if (empty($pairs)) {
+            return;
+        }
+        $this->client->post('/catalogue/link-batch', ['links' => $pairs]);
+    }
+
     /** The price to set in Woo: the server-converted figure if present, else convert GYD by $fxRate, else raw. */
     private function store_price(array $row, $key, $fxRate)
     {

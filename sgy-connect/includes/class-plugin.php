@@ -38,9 +38,11 @@ class SGY_Connect_Plugin
             ( new SGY_Connect_Exporter() )->register();
         }
 
-        // Instant sync + the inbound webhook receiver run on both admin and front-end requests.
+        // Instant sync, the inbound webhook receiver, and the background bulk import all run on both admin
+        // and non-admin requests (the bulk worker fires via WP-Cron / Action Scheduler, not the browser).
         ( new SGY_Connect_Sync($this->client) )->register();
         ( new SGY_Connect_Webhook() )->register();
+        ( new SGY_Connect_Bulk($this->client) )->register();
 
         // Self-updates from GitHub Releases (tag vX.Y.Z -> update offered in every vendor's WP admin).
         ( new SGY_Connect_Updater() )->register();

@@ -11,6 +11,7 @@ $savedMappings = $schema && isset($schema['category_mappings']) ? (array) $schem
 $wooCats = get_terms(['taxonomy' => 'product_cat', 'hide_empty' => false]);
 ?>
 <div class="wrap sgy-connect">
+    <?php include SGY_CONNECT_DIR . "views/header.php"; ?>
     <h1><?php esc_html_e('Import products to Surplus GY', 'sgy-connect'); ?></h1>
 
     <?php if (! $schema) : ?>
