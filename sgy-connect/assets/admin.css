@@ -30,3 +30,28 @@
 .sgy-connect .sgy-summary { margin-top: 8px; color: #0B1733; }
 .sgy-connect .button.button-primary { background: #D9531A; border-color: #C24E14; }
 .sgy-connect .button.button-primary:hover { background: #C24E14; border-color: #C24E14; }
+
+/* --- Onboarding dashboard --- */
+.sgy-onboard { list-style: none; margin: 18px 0; padding: 0; max-width: 760px; }
+.sgy-step { display: flex; gap: 14px; align-items: flex-start; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px 18px; margin-bottom: 12px; }
+.sgy-step.is-done { border-color: #bbf7d0; }
+.sgy-step-num { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; background: #0B1733; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+.sgy-step.is-done .sgy-step-num { background: #16a34a; }
+.sgy-step-body p { margin: 4px 0 10px; color: #475569; }
+
+/* --- Import from Surplus grid --- */
+.sgy-surplus-toolbar { margin: 12px 0; }
+.sgy-surplus-toolbar #sgy-surplus-import-all { float: right; }
+.sgy-surplus-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-top: 10px; }
+.sgy-surplus-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
+.sgy-surplus-thumb { height: 150px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; }
+.sgy-surplus-thumb img { max-width: 100%; max-height: 150px; object-fit: cover; }
+.sgy-noimg { width: 100%; height: 100%; background: #f1f5f9; }
+.sgy-surplus-meta { padding: 10px 12px; flex: 1 1 auto; }
+.sgy-surplus-meta strong { display: block; font-size: 13px; line-height: 1.35; }
+.sgy-surplus-price { color: #D9531A; font-weight: 700; margin: 6px 0 2px; }
+.sgy-gyd { color: #94a3b8; font-weight: 400; font-size: 11px; }
+.sgy-surplus-sub { color: #64748b; font-size: 12px; }
+.sgy-surplus-actions { padding: 10px 12px; border-top: 1px solid #f1f5f9; display: flex; align-items: center; gap: 8px; }
+.sgy-surplus-status { color: #16a34a; font-size: 12px; }
+.sgy-pager { margin-top: 16px; }

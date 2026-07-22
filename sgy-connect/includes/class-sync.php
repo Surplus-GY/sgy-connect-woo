@@ -15,6 +15,10 @@ class SGY_Connect_Sync
     const HOOK = 'sgy_connect_push_product';
     const GROUP = 'sgy-connect';
 
+    /** When true, a Woo->Surplus sync is suppressed — set while an inbound Surplus->Woo import/webhook
+     *  is writing the product, so a change that came FROM Surplus is not pushed straight back to it. */
+    public static $suppress = false;
+
     /** @var SGY_Connect_Client */
     private $client;
 
@@ -56,6 +60,9 @@ class SGY_Connect_Sync
     /** Enqueue a debounced push (a single job per product; a fresh change reschedules it a few seconds out). */
     public static function queue_product_sync($productId, $reason = '')
     {
+        if (self::$suppress) {
+            return; // inbound Surplus->Woo write in progress; do not echo it back to Surplus
+        }
         if (! get_post_meta($productId, '_sgy_product_id', true)) {
             return; // not imported to Surplus yet
         }

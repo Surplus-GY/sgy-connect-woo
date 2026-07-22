@@ -31,10 +31,11 @@ class SGY_Connect_Plugin
     {
         $this->client = new SGY_Connect_Client();
 
-        // Admin surfaces (menu, settings, connect + import + logs screens).
+        // Admin surfaces (dashboard, connect, import both ways, export, logs + the product fields).
         if (is_admin()) {
             ( new SGY_Connect_Admin($this->client) )->register();
             ( new SGY_Connect_Product_Tab($this->client) )->register();
+            ( new SGY_Connect_Exporter() )->register();
         }
 
         // Instant sync + the inbound webhook receiver run on both admin and front-end requests.

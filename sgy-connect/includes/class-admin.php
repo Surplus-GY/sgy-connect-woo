@@ -27,6 +27,8 @@ class SGY_Connect_Admin
         add_action('wp_ajax_sgy_connect_import', [$this, 'ajax_import']);
         add_action('wp_ajax_sgy_connect_save_mappings', [$this, 'ajax_save_mappings']);
         add_action('wp_ajax_sgy_connect_force_sync', [$this, 'ajax_force_sync']);
+        add_action('wp_ajax_sgy_connect_surplus_fetch', [$this, 'ajax_surplus_fetch']);
+        add_action('wp_ajax_sgy_connect_surplus_import', [$this, 'ajax_surplus_import']);
         add_action('admin_enqueue_scripts', [$this, 'assets']);
     }
 
@@ -37,12 +39,15 @@ class SGY_Connect_Admin
             __('Surplus GY', 'sgy-connect'),
             'manage_woocommerce',
             'sgy-connect',
-            [$this, 'render_connect'],
+            [$this, 'render_dashboard'],
             'dashicons-store',
             56
         );
-        add_submenu_page('sgy-connect', __('Connect', 'sgy-connect'), __('Connect', 'sgy-connect'), 'manage_woocommerce', 'sgy-connect', [$this, 'render_connect']);
-        add_submenu_page('sgy-connect', __('Import products', 'sgy-connect'), __('Import products', 'sgy-connect'), 'manage_woocommerce', 'sgy-connect-import', [$this, 'render_import']);
+        add_submenu_page('sgy-connect', __('Dashboard', 'sgy-connect'), __('Dashboard', 'sgy-connect'), 'manage_woocommerce', 'sgy-connect', [$this, 'render_dashboard']);
+        add_submenu_page('sgy-connect', __('Connect', 'sgy-connect'), __('Connect', 'sgy-connect'), 'manage_woocommerce', 'sgy-connect-connect', [$this, 'render_connect']);
+        add_submenu_page('sgy-connect', __('Import from Surplus', 'sgy-connect'), __('Import from Surplus', 'sgy-connect'), 'manage_woocommerce', 'sgy-connect-surplus', [$this, 'render_surplus']);
+        add_submenu_page('sgy-connect', __('Send to Surplus', 'sgy-connect'), __('Send to Surplus', 'sgy-connect'), 'manage_woocommerce', 'sgy-connect-import', [$this, 'render_import']);
+        add_submenu_page('sgy-connect', __('Export to CSV', 'sgy-connect'), __('Export to CSV', 'sgy-connect'), 'manage_woocommerce', 'sgy-connect-export', [$this, 'render_export']);
         add_submenu_page('sgy-connect', __('Sync log', 'sgy-connect'), __('Sync log', 'sgy-connect'), 'manage_woocommerce', 'sgy-connect-logs', [$this, 'render_logs']);
     }
 
@@ -92,7 +97,79 @@ class SGY_Connect_Admin
         include SGY_CONNECT_DIR . 'views/logs.php';
     }
 
+    public function render_dashboard()
+    {
+        $configured   = $this->client->is_configured();
+        $env          = $this->client->environment();
+        $webhookReady = (bool) get_option('sgy_connect_webhook_secret');
+
+        $linked = new WP_Query(['post_type' => 'product', 'post_status' => 'any', 'meta_key' => '_sgy_product_id', 'fields' => 'ids', 'posts_per_page' => 1]);
+        $linkedCount = (int) $linked->found_posts;
+
+        $imported = new WP_Query(['post_type' => 'product', 'post_status' => 'any', 'meta_key' => '_sgy_source', 'meta_value' => 'surplus', 'fields' => 'ids', 'posts_per_page' => 1]);
+        $importedCount = (int) $imported->found_posts;
+
+        include SGY_CONNECT_DIR . 'views/dashboard.php';
+    }
+
+    public function render_surplus()
+    {
+        $configured = $this->client->is_configured();
+        $currency   = get_woocommerce_currency();
+        include SGY_CONNECT_DIR . 'views/surplus.php';
+    }
+
+    public function render_export()
+    {
+        $count      = SGY_Connect_Exporter::product_count();
+        $exportUrl  = wp_nonce_url(admin_url('admin-post.php?action=' . SGY_Connect_Exporter::ACTION), SGY_Connect_Exporter::ACTION);
+        include SGY_CONNECT_DIR . 'views/export.php';
+    }
+
     // ---- ajax --------------------------------------------------------------------------------------
+
+    /** Fetch one page of the vendor's Surplus catalogue for the "Import from Surplus" screen. */
+    public function ajax_surplus_fetch()
+    {
+        $this->guard();
+        $page   = max(1, (int) (isset($_POST['page']) ? $_POST['page'] : 1));
+        $search = isset($_POST['search']) ? sanitize_text_field(wp_unslash($_POST['search'])) : '';
+
+        $res = ( new SGY_Connect_Catalogue($this->client) )->fetch($page, $search);
+        if (empty($res['ok'])) {
+            wp_send_json_error(['message' => isset($res['error']) ? $res['error'] : __('Could not load your Surplus products.', 'sgy-connect')]);
+        }
+
+        $data = $res['data'];
+        if (! empty($data['products']) && is_array($data['products'])) {
+            foreach ($data['products'] as &$p) {
+                $existing = SGY_Connect_Catalogue::find_woo_product_by_surplus_id((int) $p['surplus_product_id']);
+                $p['in_woo'] = (bool) $existing;
+                $p['woo_id'] = (int) $existing;
+            }
+            unset($p);
+        }
+
+        wp_send_json_success($data);
+    }
+
+    /** Import one Surplus product into Woo (the row is the object returned by ajax_surplus_fetch). */
+    public function ajax_surplus_import()
+    {
+        $this->guard();
+        $row = json_decode(isset($_POST['row']) ? wp_unslash($_POST['row']) : '', true);
+        if (! is_array($row) || empty($row['surplus_product_id'])) {
+            wp_send_json_error(['message' => __('Invalid product.', 'sgy-connect')]);
+        }
+
+        $catalogue = new SGY_Connect_Catalogue($this->client);
+        $result = $catalogue->import_and_link($row, $catalogue->current_fx_rate());
+        if ($result['result'] === 'error') {
+            wp_send_json_error(['message' => $result['message']]);
+        }
+
+        wp_send_json_success($result);
+    }
 
     private function guard()
     {

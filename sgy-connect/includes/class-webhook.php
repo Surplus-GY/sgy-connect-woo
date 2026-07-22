@@ -68,6 +68,24 @@ class SGY_Connect_Webhook
                     SGY_Connect_Logger::log('inbound', $event, 'ok', 'product ' . $externalId, $correlationId);
                 }
                 break;
+            case 'product.created':
+            case 'product.updated':
+                // Instant Surplus -> Woo sync: (re)build the Woo product from the full payload. Suppress
+                // the plugin's own Woo -> Surplus sync while we write, so the change is not echoed back.
+                if (! empty($data['surplus_product_id'])) {
+                    SGY_Connect_Sync::$suppress = true;
+                    $catalogue = new SGY_Connect_Catalogue(new SGY_Connect_Client());
+                    $result = $catalogue->import_product($data, $catalogue->current_fx_rate());
+                    SGY_Connect_Sync::$suppress = false;
+                    SGY_Connect_Logger::log(
+                        'inbound',
+                        $event,
+                        $result['result'] === 'error' ? 'error' : 'ok',
+                        'surplus #' . (int) $data['surplus_product_id'] . ' -> woo #' . $result['woo_id'] . ($result['message'] ? ' ' . $result['message'] : ''),
+                        $correlationId
+                    );
+                }
+                break;
             default:
                 SGY_Connect_Logger::log('inbound', $event ?: 'unknown', 'skipped', 'unhandled event', $correlationId);
         }
