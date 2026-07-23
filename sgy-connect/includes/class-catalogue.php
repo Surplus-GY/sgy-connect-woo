@@ -26,7 +26,7 @@ class SGY_Connect_Catalogue
      * Fetch one page of the Surplus catalogue. Passes the store currency so the server returns a
      * converted price + the FX note. Returns the raw API result array (ok/status/data/error).
      */
-    public function fetch($page = 1, $search = '')
+    public function fetch($page = 1, $search = '', $category = 0, $sort = 'newest')
     {
         $query = [
             'page'     => max(1, (int) $page),
@@ -35,6 +35,12 @@ class SGY_Connect_Catalogue
         ];
         if ($search !== '') {
             $query['search'] = (string) $search;
+        }
+        if ((int) $category > 0) {
+            $query['category'] = (int) $category;
+        }
+        if ($sort !== '' && $sort !== 'newest') {
+            $query['sort'] = (string) $sort;
         }
 
         $res = $this->client->get('/catalogue', $query);

@@ -23,10 +23,9 @@
     box-shadow: 0 2px 12px rgba(11, 23, 51, 0.05);
 }
 .sgy-brand { display: flex; align-items: center; gap: 12px; }
-.sgy-logo-mark { display: inline-flex; line-height: 0; }
-.sgy-logo-text { font-size: 18px; font-weight: 700; color: #0B1733; letter-spacing: 0.2px; }
-.sgy-logo-text span { color: #D9531A; }
-.sgy-logo-text em { font-style: normal; font-weight: 600; color: #8b94a7; }
+.sgy-logo-img { height: 34px; width: auto; display: block; }
+.sgy-logo-divider { width: 1px; height: 24px; background: #e0e4ec; display: inline-block; }
+.sgy-logo-tag { font-size: 13px; font-weight: 600; color: #8b94a7; text-transform: uppercase; letter-spacing: 1.5px; }
 .sgy-topbar .sgy-badge { margin-left: auto; }
 
 /* ---- Headings / text ---- */
@@ -89,7 +88,8 @@
 .sgy-sync-note .dashicons { vertical-align: middle; }
 
 /* ---- Import from Surplus ---- */
-.sgy-surplus-toolbar { margin: 14px 0; display: flex; gap: 8px; align-items: center; }
+.sgy-surplus-toolbar { margin: 14px 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.sgy-surplus-toolbar .sgy-filter { min-width: 170px; height: 30px; border-radius: 7px; }
 .sgy-surplus-bulkbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: #fff; border: 1px solid #e6e9f0; border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; box-shadow: 0 1px 8px rgba(11, 23, 51, 0.04); }
 .sgy-checkall { font-weight: 600; color: #0B1733; }
 .sgy-checkall input { margin-right: 4px; }

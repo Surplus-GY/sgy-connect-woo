@@ -103,9 +103,17 @@
     (function () {
         var $list = $('#sgy-surplus-list');
         if (!$list.length) { return; }
-        var page = 1, search = '';
+        var page = 1, search = '', category = '0', sort = 'newest', categoriesLoaded = false;
 
         function esc(s) { return $('<div>').text(s === null || s === undefined ? '' : s).html(); }
+
+        function fillCategories(cats) {
+            if (categoriesLoaded || !cats || !cats.length) { return; }
+            var $sel = $('#sgy-surplus-category');
+            if (!$sel.length) { return; }
+            cats.forEach(function (c) { $sel.append('<option value="' + esc(c.id) + '">' + esc(c.name) + ' (' + esc(c.count) + ')</option>'); });
+            categoriesLoaded = true;
+        }
 
         function money(row) {
             if (row.store_currency && row.price_converted !== null && row.price_converted !== undefined) {
@@ -140,24 +148,30 @@
         function renderPager(d) {
             var $p = $('#sgy-surplus-pager').empty();
             if (!d || d.last_page <= 1) { return; }
-            function btn(lbl, target, disabled) {
-                var $b = $('<button class="button sgy-page-btn">' + lbl + '</button>');
-                if (disabled) { $b.prop('disabled', true); } else { $b.on('click', function () { page = target; load(); window.scrollTo(0, 0); }); }
+            var last = d.last_page, cur = d.page;
+            function btn(lbl, target, opts) {
+                opts = opts || {};
+                var $b = $('<button class="button sgy-page-btn' + (opts.active ? ' button-primary' : '') + '">' + lbl + '</button>');
+                if (opts.disabled) { $b.prop('disabled', true); }
+                else if (!opts.active) { $b.on('click', function () { page = target; load(); window.scrollTo(0, 0); }); }
                 return $b;
             }
-            $p.append(btn('« First', 1, d.page <= 1)).append(' ')
-              .append(btn('‹ Prev', d.page - 1, d.page <= 1))
-              .append(' <span class="sgy-page-info">Page ' + d.page + ' of ' + d.last_page + ' · ' + d.total + ' products</span> ')
-              .append(btn('Next ›', d.page + 1, d.page >= d.last_page)).append(' ')
-              .append(btn('Last »', d.last_page, d.page >= d.last_page));
+            $p.append(btn('‹', cur - 1, { disabled: cur <= 1 })).append(' ');
+            var start = Math.max(1, cur - 2), end = Math.min(last, cur + 2);
+            if (start > 1) { $p.append(btn('1', 1)).append(' '); if (start > 2) { $p.append('<span class="sgy-page-info">…</span> '); } }
+            for (var pnum = start; pnum <= end; pnum++) { $p.append(btn(String(pnum), pnum, { active: pnum === cur })).append(' '); }
+            if (end < last) { if (end < last - 1) { $p.append('<span class="sgy-page-info">…</span> '); } $p.append(btn(String(last), last)).append(' '); }
+            $p.append(btn('›', cur + 1, { disabled: cur >= last }));
+            $p.append(' <span class="sgy-page-info">' + esc(d.total) + ' products</span>');
         }
 
         function load() {
             $list.html('<p class="sgy-loading">Loading your Surplus products…</p>');
             $('#sgy-surplus-checkall').prop('checked', false);
-            post('sgy_connect_surplus_fetch', { page: page, search: search }).done(function (r) {
+            post('sgy_connect_surplus_fetch', { page: page, search: search, category: category, sort: sort }).done(function (r) {
                 if (!r || !r.success) { $list.html('<div class="notice notice-error inline"><p>' + esc(r && r.data && r.data.message) + '</p></div>'); return; }
                 var d = r.data;
+                fillCategories(d.categories);
                 var $fx = $('#sgy-surplus-fxnote');
                 if (d.fx_note) { $fx.find('p').text(d.fx_note); $fx.show(); } else { $fx.hide(); }
                 $list.empty();
@@ -185,6 +199,8 @@
         $('#sgy-surplus-checkall').on('change', function () { $list.find('.sgy-surplus-cb').prop('checked', this.checked); updateSelected(); });
         $('#sgy-surplus-search-btn').on('click', function () { search = $('#sgy-surplus-search').val(); page = 1; load(); });
         $('#sgy-surplus-search').on('keydown', function (e) { if (e.which === 13) { e.preventDefault(); search = $(this).val(); page = 1; load(); } });
+        $('#sgy-surplus-category').on('change', function () { category = $(this).val(); page = 1; load(); });
+        $('#sgy-surplus-sort').on('change', function () { sort = $(this).val(); page = 1; load(); });
 
         // Import selected (this page): sequential, so a modest batch is reliable in the browser.
         $('#sgy-surplus-import-selected').on('click', function () {

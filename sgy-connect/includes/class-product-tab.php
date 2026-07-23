@@ -183,18 +183,25 @@ class SGY_Connect_Product_Tab
         }
         $sgyId = get_post_meta($postId, '_sgy_product_id', true);
         if (! $sgyId) {
-            echo '<span style="color:#888">' . esc_html__('Not imported', 'sgy-connect') . '</span>';
+            echo '<span style="display:inline-block;padding:2px 9px;border-radius:10px;background:#f0f0f1;color:#888;font-size:11px;">'
+                . esc_html__('Not on Surplus', 'sgy-connect') . '</span>';
 
             return;
         }
+
+        // A clear "Synced" pill so a vendor can see at a glance which products are linked to Surplus, with
+        // the detailed state (outstanding fields / approval) underneath.
+        echo '<span style="display:inline-block;padding:2px 9px;border-radius:10px;background:#E7F4EA;color:#15803d;font-size:11px;font-weight:600;">&#10003; '
+            . esc_html__('Synced', 'sgy-connect') . '</span>';
+
         $missing = (array) get_post_meta($postId, '_sgy_missing', true);
         $approval = get_post_meta($postId, '_sgy_approval', true);
         if (! empty($missing)) {
-            echo '<span style="color:#b45309">' . sprintf(esc_html__('%d fields outstanding', 'sgy-connect'), count($missing)) . '</span>';
+            echo '<br><span style="color:#b45309;font-size:11px;">' . sprintf(esc_html__('%d fields outstanding', 'sgy-connect'), count($missing)) . '</span>';
         } elseif ($approval === 'approved') {
-            echo '<span style="color:#15803d">' . esc_html__('Live on Surplus', 'sgy-connect') . '</span>';
+            echo '<br><span style="color:#15803d;font-size:11px;">' . esc_html__('Live on Surplus', 'sgy-connect') . '</span>';
         } else {
-            echo '<span style="color:#2563eb">' . esc_html__('Awaiting approval', 'sgy-connect') . '</span>';
+            echo '<br><span style="color:#2563eb;font-size:11px;">' . esc_html__('Awaiting approval', 'sgy-connect') . '</span>';
         }
     }
 }

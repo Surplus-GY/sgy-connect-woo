@@ -44,6 +44,10 @@ class SGY_Connect_Plugin
         ( new SGY_Connect_Webhook() )->register();
         ( new SGY_Connect_Bulk($this->client) )->register();
 
+        // The catalogue endpoint Surplus calls to pull this store's products (reverse import). REST route,
+        // so it must register on every request, not just admin.
+        ( new SGY_Connect_Catalog_Endpoint($this->client) )->register();
+
         // Self-updates from GitHub Releases (tag vX.Y.Z -> update offered in every vendor's WP admin).
         ( new SGY_Connect_Updater() )->register();
 

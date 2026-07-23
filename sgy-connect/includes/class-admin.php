@@ -135,10 +135,12 @@ class SGY_Connect_Admin
     public function ajax_surplus_fetch()
     {
         $this->guard();
-        $page   = max(1, (int) (isset($_POST['page']) ? $_POST['page'] : 1));
-        $search = isset($_POST['search']) ? sanitize_text_field(wp_unslash($_POST['search'])) : '';
+        $page     = max(1, (int) (isset($_POST['page']) ? $_POST['page'] : 1));
+        $search   = isset($_POST['search']) ? sanitize_text_field(wp_unslash($_POST['search'])) : '';
+        $category = isset($_POST['category']) ? (int) $_POST['category'] : 0;
+        $sort     = isset($_POST['sort']) ? sanitize_text_field(wp_unslash($_POST['sort'])) : 'newest';
 
-        $res = ( new SGY_Connect_Catalogue($this->client) )->fetch($page, $search);
+        $res = ( new SGY_Connect_Catalogue($this->client) )->fetch($page, $search, $category, $sort);
         if (empty($res['ok'])) {
             wp_send_json_error(['message' => isset($res['error']) ? $res['error'] : __('Could not load your Surplus products.', 'sgy-connect')]);
         }

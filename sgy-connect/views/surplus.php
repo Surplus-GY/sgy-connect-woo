@@ -31,6 +31,18 @@ defined('ABSPATH') || exit;
         <div class="sgy-surplus-toolbar">
             <input type="search" id="sgy-surplus-search" class="regular-text" placeholder="<?php esc_attr_e('Search your Surplus products…', 'sgy-connect'); ?>">
             <button class="button" id="sgy-surplus-search-btn"><?php esc_html_e('Search', 'sgy-connect'); ?></button>
+            <select id="sgy-surplus-category" class="sgy-filter">
+                <option value="0"><?php esc_html_e('All categories', 'sgy-connect'); ?></option>
+            </select>
+            <select id="sgy-surplus-sort" class="sgy-filter">
+                <option value="newest"><?php esc_html_e('Newest first', 'sgy-connect'); ?></option>
+                <option value="oldest"><?php esc_html_e('Oldest first', 'sgy-connect'); ?></option>
+                <option value="title_asc"><?php esc_html_e('Name A–Z', 'sgy-connect'); ?></option>
+                <option value="title_desc"><?php esc_html_e('Name Z–A', 'sgy-connect'); ?></option>
+                <option value="price_asc"><?php esc_html_e('Price low to high', 'sgy-connect'); ?></option>
+                <option value="price_desc"><?php esc_html_e('Price high to low', 'sgy-connect'); ?></option>
+                <option value="stock_desc"><?php esc_html_e('Most in stock', 'sgy-connect'); ?></option>
+            </select>
         </div>
 
         <div class="sgy-surplus-bulkbar">
