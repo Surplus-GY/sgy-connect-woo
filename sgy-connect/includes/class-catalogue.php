@@ -100,6 +100,15 @@ class SGY_Connect_Catalogue
             return ['result' => 'error', 'woo_id' => 0, 'message' => 'missing surplus_product_id'];
         }
 
+        // Surplus bundles and Custom & Engraving products have no WooCommerce equivalent the plugin can
+        // build; flattening them into a simple product would corrupt the store, so they are skipped.
+        if (! empty($row['is_bundle']) || ! empty($row['is_custom'])) {
+            $kind = ! empty($row['is_bundle']) ? 'bundle' : 'custom';
+            SGY_Connect_Logger::log('inbound', 'import', 'skipped', 'surplus #' . $surplusId . ' (' . $kind . '): unsupported_product_kind');
+
+            return ['result' => 'skipped', 'woo_id' => 0, 'message' => 'unsupported_product_kind'];
+        }
+
         try {
             $wooId = self::find_woo_product_by_surplus_id($surplusId);
             $isNew = ! $wooId;

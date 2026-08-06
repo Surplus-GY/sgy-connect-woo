@@ -3,7 +3,7 @@
  * Plugin Name:       Surplus GY Connect
  * Plugin URI:        https://github.com/Surplus-GY/sgy-connect-woo
  * Description:       Import your WooCommerce products into Surplus GY and keep price, stock and visibility in sync. Shows exactly which Surplus fields are still outstanding, right in your product editor.
- * Version:           0.4.0
+ * Version:           0.5.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Surplus GY
@@ -22,7 +22,7 @@ if (! defined('ABSPATH')) {
     exit; // no direct access
 }
 
-define('SGY_CONNECT_VERSION', '0.4.0');
+define('SGY_CONNECT_VERSION', '0.5.0');
 define('SGY_CONNECT_FILE', __FILE__);
 define('SGY_CONNECT_DIR', plugin_dir_path(__FILE__));
 define('SGY_CONNECT_URL', plugin_dir_url(__FILE__));

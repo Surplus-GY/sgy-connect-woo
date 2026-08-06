@@ -45,5 +45,8 @@ versions in the usual Plugins screen. To follow the staging (pre-release) channe
 
 == Changelog ==
 
+= 0.5.0 =
+* Surplus GY product bundles and Custom & Engraving products are now recognised and skipped when importing from Surplus (they have no WooCommerce equivalent), with a clear "skipped" entry in the sync log and on the import screen.
+
 = 0.1.0 =
 * Initial release: connect, import, product-editor tab, instant sync, two-way stock, sync log, WP-CLI.

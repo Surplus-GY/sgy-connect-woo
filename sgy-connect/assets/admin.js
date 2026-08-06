@@ -188,7 +188,8 @@
             var $btn = $card.find('.sgy-surplus-import').prop('disabled', true);
             post('sgy_connect_surplus_import', { row: JSON.stringify(row) }).done(function (r) {
                 $btn.prop('disabled', false);
-                if (r && r.success) { $status.text('Done'); $btn.text('Re-import').removeClass('button-primary'); $card.find('.sgy-surplus-cb').prop('checked', false); }
+                if (r && r.success && r.data && r.data.result === 'skipped') { $status.text('Skipped: not supported in WooCommerce'); $card.find('.sgy-surplus-cb').prop('checked', false); }
+                else if (r && r.success) { $status.text('Done'); $btn.text('Re-import').removeClass('button-primary'); $card.find('.sgy-surplus-cb').prop('checked', false); }
                 else { $status.text((r && r.data && r.data.message) || 'Failed'); }
                 if (cb) { cb(); }
             });

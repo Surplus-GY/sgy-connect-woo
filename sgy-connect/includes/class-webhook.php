@@ -77,10 +77,16 @@ class SGY_Connect_Webhook
                     $catalogue = new SGY_Connect_Catalogue(new SGY_Connect_Client());
                     $result = $catalogue->import_product($data, $catalogue->current_fx_rate());
                     SGY_Connect_Sync::$suppress = false;
+                    $logResult = 'ok';
+                    if ($result['result'] === 'error') {
+                        $logResult = 'error';
+                    } elseif ($result['result'] === 'skipped') {
+                        $logResult = 'skipped'; // bundle/custom kinds are not buildable in Woo
+                    }
                     SGY_Connect_Logger::log(
                         'inbound',
                         $event,
-                        $result['result'] === 'error' ? 'error' : 'ok',
+                        $logResult,
                         'surplus #' . (int) $data['surplus_product_id'] . ' -> woo #' . $result['woo_id'] . ($result['message'] ? ' ' . $result['message'] : ''),
                         $correlationId
                     );

@@ -14,7 +14,10 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Self-hosted, not ubuntu-latest: GitHub-HOSTED jobs fail across this whole org while the Actions
+    # billing block is in place, so a hosted runner would never produce a release at all. The staging
+    # box already runs every other build in the org.
+    runs-on: [self-hosted, staging]
     steps:
       - uses: actions/checkout@v4
 
@@ -35,13 +38,24 @@ jobs:
       - name: Build zip
         # Zip WITH the top-level sgy-connect/ folder: WordPress installs a plugin into a directory named
         # after the zip's top entry, so the archive must contain sgy-connect/ (not its bare contents).
+        #
+        # TWO assets are attached on purpose:
+        #   sgy-connect-vX.Y.Z.zip  archival, so an older build stays downloadable by version.
+        #   sgy-connect.zip         a STABLE name, which is what makes
+        #                           /releases/latest/download/sgy-connect.zip a permanent direct link.
+        # The vendor panel's Download button points at that permanent URL, so it always serves the
+        # newest release without anyone editing a link. A version-named asset alone cannot do that,
+        # because the latest/download path has to know the exact file name.
         run: |
           zip -r "sgy-connect-${GITHUB_REF_NAME}.zip" sgy-connect -x '*.git*'
-          ls -la sgy-connect-*.zip
+          cp "sgy-connect-${GITHUB_REF_NAME}.zip" sgy-connect.zip
+          ls -la sgy-connect*.zip
           unzip -l "sgy-connect-${GITHUB_REF_NAME}.zip" | head -5
 
-      - name: Attach zip to the release
+      - name: Attach zips to the release
         uses: softprops/action-gh-release@v2
         with:
-          files: sgy-connect-*.zip
+          files: |
+            sgy-connect-*.zip
+            sgy-connect.zip
           generate_release_notes: true
