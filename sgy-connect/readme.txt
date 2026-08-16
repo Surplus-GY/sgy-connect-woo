@@ -45,6 +45,13 @@ versions in the usual Plugins screen. To follow the staging (pre-release) channe
 
 == Changelog ==
 
+= 0.6.0 =
+* Products with options (sizes, colours) now work properly in both directions. They used to be skipped on the way up and flattened into a single product on the way down.
+* Each option keeps its own price and its own stock number on Surplus GY, and a change to one option only changes that option.
+* Fixes a case where saving a product with options in WooCommerce sent Surplus GY a stock figure of 999998 instead of the real numbers, because a variable product's parent holds no stock count of its own.
+* A variation with a choice left as "Any" is now named in the log and left out, rather than silently producing the wrong row. Give it an exact value and import again.
+* Deleting a variation in WooCommerce now takes that option to zero stock on Surplus GY rather than leaving it on sale. Nothing is deleted, because past orders point at it.
+
 = 0.5.0 =
 * Surplus GY product bundles and Custom & Engraving products are now recognised and skipped when importing from Surplus (they have no WooCommerce equivalent), with a clear "skipped" entry in the sync log and on the import screen.
 

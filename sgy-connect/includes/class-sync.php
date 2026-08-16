@@ -99,16 +99,44 @@ class SGY_Connect_Sync
         $payload = [
             'title'            => $product->get_name(),
             'long_description' => wp_strip_all_tags($product->get_description() ?: $product->get_short_description()),
-            'price'            => $product->get_regular_price(),
             'currency'         => get_woocommerce_currency(),
-            // A non-stock-managed product is unlimited: send a large in-stock quantity, not a literal 0.
-            'stock'            => $product->managing_stock() ? (int) $product->get_stock_quantity() : ($product->get_stock_status() === 'outofstock' ? 0 : 999998),
             // Surplus listing on/off = the product is PUBLISHED. Do NOT use is_visible(): a catalogue-hidden
             // (search-only) product is still for sale and must not be unpublished on Surplus.
             'status'           => $product->get_status() === 'publish' ? 1 : 0,
-            // Always send discounted_price (null clears it), so removing a Woo sale propagates to Surplus.
-            'discounted_price' => ($sale = $product->get_sale_price()) !== '' ? $sale : null,
         ];
+
+        /**
+         * ⚠️ A VARIABLE PRODUCT SENDS ITS VARIATIONS, AND SENDS NO PARENT PRICE OR STOCK AT ALL.
+         *
+         * This is the line that was doing real damage. A variable parent carries no `_regular_price`
+         * and, unless the shop counts stock at parent level, `managing_stock()` is false, so the two
+         * expressions below evaluated to `''` and to 999998, the plugin's own "unlimited" sentinel.
+         * Surplus took the sentinel as the product's stock. Reproduced against the real endpoint: a
+         * 5/3/2 product's master stock became 1,000,008, a warehouse row appeared holding 999,998
+         * against no option, the three real options did not move, and the response was a plain
+         * {"ok":true} that this log recorded as a successful sync.
+         *
+         * The variations carry the numbers that actually exist. `variations_complete` says the list is
+         * the whole product, which is what lets Surplus take a variation the shop deleted off sale;
+         * only a full read like this one may claim it.
+         */
+        if (SGY_Connect_Variations::is_variable($product)) {
+            $built = SGY_Connect_Variations::variations_of($product);
+            if (empty($built['variations'])) {
+                SGY_Connect_Logger::log('outbound', 'sync', 'skipped', 'product ' . $productId . ' has options but none could be read (a variation may be set to "Any"); nothing was sent');
+
+                return;
+            }
+            $payload['variations'] = $built['variations'];
+            $payload['variations_complete'] = $built['skipped'] === 0;
+            $payload['attributes'] = SGY_Connect_Variations::attributes_of($product);
+        } else {
+            $payload['price'] = $product->get_regular_price();
+            // A non-stock-managed product is unlimited: send a large in-stock quantity, not a literal 0.
+            $payload['stock'] = $product->managing_stock() ? (int) $product->get_stock_quantity() : ($product->get_stock_status() === 'outofstock' ? 0 : 999998);
+            // Always send discounted_price (null clears it), so removing a Woo sale propagates to Surplus.
+            $payload['discounted_price'] = ($sale = $product->get_sale_price()) !== '' ? $sale : null;
+        }
 
         // The Surplus-owned panel fields (if the vendor filled them) go under 'surplus'.
         $surplus = [];

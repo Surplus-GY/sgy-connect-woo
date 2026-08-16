@@ -3,7 +3,11 @@
  * Maps WooCommerce products to the Surplus /products/import payload and pushes them in batches. Images
  * go as public URLs (Surplus sideloads them). The Surplus-owned fields (dimensions, VAT, condition,
  * country, is_pharma) come from the plugin's own _sgy_* postmeta if the vendor filled the Surplus GY tab;
- * everything else comes from Woo. Simple products only in the MVP (variable products are P5).
+ * everything else comes from Woo.
+ *
+ * Simple AND variable products. The variable half used to be skipped outright ("variants are P5"), which
+ * left a shop's clothing, its sizes and every product with a choice on it unable to reach Surplus at all,
+ * while the server had accepted the variable payload shape since 2026-07-22.
  */
 
 if (! defined('ABSPATH')) {
@@ -20,7 +24,13 @@ class SGY_Connect_Importer
         $this->client = $client;
     }
 
-    /** How many published SIMPLE products exist (only these import; drives the wizard's progress bar). */
+    /**
+     * How many published importable products exist (drives the wizard's progress bar).
+     *
+     * ⚠️ `variable` IS PART OF THIS LIST NOW. It used to say `simple` only, so a shop whose catalogue
+     * is clothing saw a progress bar that read 0 products and concluded the plugin was broken, when in
+     * fact everything it owned was being filtered out one line later in to_payload().
+     */
     public function total()
     {
         $q = new WP_Query([
@@ -29,7 +39,7 @@ class SGY_Connect_Importer
             'posts_per_page' => 1,
             'fields'         => 'ids',
             'no_found_rows'  => false,
-            'tax_query'      => [[ 'taxonomy' => 'product_type', 'field' => 'slug', 'terms' => 'simple' ]],
+            'tax_query'      => [[ 'taxonomy' => 'product_type', 'field' => 'slug', 'terms' => ['simple', 'variable'] ]],
         ]);
 
         return (int) $q->found_posts;
@@ -86,12 +96,18 @@ class SGY_Connect_Importer
         ];
     }
 
-    /** Build the import payload for one Woo product, or null if it is not a simple product. */
+    /** Build the import payload for one Woo product, or null if it is a kind Surplus cannot hold. */
     public function to_payload($productId)
     {
         $product = wc_get_product($productId);
-        if (! $product || ! $product->is_type('simple')) {
-            return null; // MVP: simple products only
+        if (! $product) {
+            return null;
+        }
+        if (SGY_Connect_Variations::is_variable($product)) {
+            return $this->variable_payload($product);
+        }
+        if (! $product->is_type('simple')) {
+            return null; // grouped and external products have no Surplus equivalent
         }
 
         $images = [];
@@ -139,6 +155,95 @@ class SGY_Connect_Importer
             }
         }
         // Woo native dimensions fill the Surplus dimensions when the vendor has not overridden them.
+        foreach (['length' => 'max_length', 'width' => 'max_width', 'height' => 'max_height'] as $wooDim => $sgyDim) {
+            if (empty($payload[$sgyDim])) {
+                $dim = $wooDim === 'length' ? $product->get_length() : ($wooDim === 'width' ? $product->get_width() : $product->get_height());
+                if ($dim !== '' && (float) $dim > 0) {
+                    $payload[$sgyDim] = $this->to_inches((float) $dim);
+                }
+            }
+        }
+
+        return $payload;
+    }
+
+    /**
+     * The import payload for a VARIABLE product: the shared parent fields, the option groups, and one
+     * entry per variation carrying that variation's own price and stock.
+     *
+     * ⚠️ NO PARENT-LEVEL `price` OR `stock` IS SENT, DELIBERATELY. A Woo variable parent holds neither
+     * (`get_regular_price()` is empty and `managing_stock()` is false unless the shop counts at parent
+     * level), so the simple path's own defaults turned that absence into "" and the 999998 unlimited
+     * sentinel, and Surplus wrote the sentinel into a summary column. Surplus refuses both on a product
+     * with options now, but sending them at all would still put a warning on every sync for ever.
+     *
+     * `variations_complete` says this list IS the whole product, which is what lets Surplus take a
+     * variation the shop has deleted off sale. Only a full build like this one may claim it.
+     */
+    private function variable_payload($product)
+    {
+        $productId = $product->get_id();
+        $built = SGY_Connect_Variations::variations_of($product);
+
+        if (empty($built['variations'])) {
+            SGY_Connect_Logger::log('outbound', 'import', 'skipped', sprintf(
+                'Product %d has options but none of them could be read (a variation may be set to "Any" for one of its choices, which Surplus cannot hold). Give every variation an exact value for every choice and import again.',
+                (int) $productId
+            ));
+
+            return null;
+        }
+        if ($built['skipped'] > 0) {
+            SGY_Connect_Logger::log('outbound', 'import', 'warning', sprintf(
+                'Product %d: %d of its variations were left out because a choice was set to "Any" or there were more than %d of them. The rest imported normally.',
+                (int) $productId,
+                (int) $built['skipped'],
+                SGY_Connect_Variations::MAX_VARIATIONS
+            ));
+        }
+
+        $images = [];
+        $mainId = $product->get_image_id();
+        if ($mainId) {
+            $url = wp_get_attachment_image_url($mainId, 'full');
+            if ($url) {
+                $images[] = $url;
+            }
+        }
+        foreach ($product->get_gallery_image_ids() as $gid) {
+            $url = wp_get_attachment_image_url($gid, 'full');
+            if ($url && count($images) < 5) {
+                $images[] = $url;
+            }
+        }
+
+        $payload = [
+            'external_id'         => (string) $productId,
+            'is_variable'         => true,
+            'title'               => $product->get_name(),
+            'long_description'    => wp_strip_all_tags($product->get_description() ?: $product->get_short_description()),
+            'sku'                 => $product->get_sku(),
+            'currency'            => get_woocommerce_currency(),
+            'brand'               => $this->brand_of($product),
+            'upc'                 => $this->clean_gtin(
+                method_exists($product, 'get_global_unique_id') ? $product->get_global_unique_id() : (string) $product->get_meta('_global_unique_id'),
+                $productId
+            ),
+            'max_weight'          => $this->to_pounds($product->get_weight()),
+            'source_category'     => $this->primary_category_slug($productId),
+            'images'              => $images,
+            'attributes'          => SGY_Connect_Variations::attributes_of($product),
+            'variations'          => $built['variations'],
+            'variations_complete' => true,
+        ];
+
+        // The Surplus-owned fields the vendor filled on the Surplus GY tab, exactly as the simple path.
+        foreach (['max_length', 'max_width', 'max_height', 'country_of_manufacture', 'is_vat_inclusive', 'vat_percentage', 'is_pharma', 'product_condition', 'category_id'] as $key) {
+            $val = get_post_meta($productId, '_sgy_' . $key, true);
+            if ($val !== '') {
+                $payload[$key] = $val;
+            }
+        }
         foreach (['length' => 'max_length', 'width' => 'max_width', 'height' => 'max_height'] as $wooDim => $sgyDim) {
             if (empty($payload[$sgyDim])) {
                 $dim = $wooDim === 'length' ? $product->get_length() : ($wooDim === 'width' ? $product->get_width() : $product->get_height());

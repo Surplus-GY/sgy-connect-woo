@@ -113,11 +113,31 @@ class SGY_Connect_Catalogue
             $wooId = self::find_woo_product_by_surplus_id($surplusId);
             $isNew = ! $wooId;
 
-            // Variable products are not built here yet (simple + their variations come in a later pass);
-            // import the parent as a simple product so the vendor still gets it, priced from the master.
-            $product = $wooId ? wc_get_product($wooId) : new WC_Product_Simple();
+            /**
+             * ⚠️ A SURPLUS PRODUCT WITH OPTIONS IS BUILT AS A WOOCOMMERCE VARIABLE PRODUCT NOW.
+             *
+             * It used to be flattened into one WC_Product_Simple "priced from the master", which lost
+             * the sizes and the colours and, far worse, did not stay lost: the flattened product still
+             * got `_sgy_product_id`, so the plugin's own instant sync started firing for it, and the
+             * next thing the shop typed pushed a single price and a single stock figure back at a
+             * Surplus product whose real prices and stock live one row per option. The master price
+             * being what the LISTING shows and the option price being what the CHECKOUT charges is how
+             * "shown is not charged" gets shipped.
+             */
+            $wantsVariations = (int) (isset($row['product_type']) ? $row['product_type'] : 1) === 2
+                && ! empty($row['variants']) && ! empty($row['attributes']);
+
+            $product = $wooId ? wc_get_product($wooId) : null;
+
+            // Switching an existing simple product to variable (or the reverse) needs a real class
+            // change; Woo keys that off the product_type taxonomy, so set it before re-reading.
+            if ($product && $wantsVariations && ! $product->is_type('variable')) {
+                wp_set_object_terms($product->get_id(), 'variable', 'product_type');
+                $product = wc_get_product($product->get_id());
+            }
+
             if (! $product) {
-                $product = new WC_Product_Simple();
+                $product = $wantsVariations ? new WC_Product_Variable() : new WC_Product_Simple();
                 $isNew = true;
             }
 
@@ -133,20 +153,33 @@ class SGY_Connect_Catalogue
                 }
             }
 
-            // Price: use the server-converted value when present, else convert here, else the GYD figure.
-            $product->set_regular_price((string) $this->store_price($row, 'price', $fxRate));
-            $sale = $this->store_price($row, 'discounted_price', $fxRate);
-            $product->set_sale_price($sale !== null && $sale !== '' ? (string) $sale : '');
+            /**
+             * Price and stock, on the parent, for a SIMPLE product only.
+             *
+             * ⚠️ A VARIABLE PARENT MUST BE LEFT EMPTY. Surplus's `price` and `stock` on a product with
+             * options are a derived summary (the lowest option price, the total of the option stock).
+             * Writing them onto the Woo parent would make that parent look like a priced, stocked
+             * product in its own right, which is what fed the parent-level figures straight back into
+             * the next outbound sync. The real numbers go on the variations below.
+             */
+            if (! $wantsVariations) {
+                // Price: use the server-converted value when present, else convert here, else the GYD figure.
+                $product->set_regular_price((string) $this->store_price($row, 'price', $fxRate));
+                $sale = $this->store_price($row, 'discounted_price', $fxRate);
+                $product->set_sale_price($sale !== null && $sale !== '' ? (string) $sale : '');
 
-            // Stock. Surplus sends a big sentinel for "unlimited"; treat that as not-managed/in-stock.
-            $stock = isset($row['stock']) ? (int) $row['stock'] : 0;
-            if ($stock >= 999990) {
-                $product->set_manage_stock(false);
-                $product->set_stock_status('instock');
+                // Stock. Surplus sends a big sentinel for "unlimited"; treat that as not-managed/in-stock.
+                $stock = isset($row['stock']) ? (int) $row['stock'] : 0;
+                if ($stock >= 999990) {
+                    $product->set_manage_stock(false);
+                    $product->set_stock_status('instock');
+                } else {
+                    $product->set_manage_stock(true);
+                    $product->set_stock_quantity($stock);
+                    $product->set_stock_status($stock > 0 ? 'instock' : 'outofstock');
+                }
             } else {
-                $product->set_manage_stock(true);
-                $product->set_stock_quantity($stock);
-                $product->set_stock_status($stock > 0 ? 'instock' : 'outofstock');
+                $product->set_manage_stock(false); // the variations count, not the parent
             }
 
             // Physical: Surplus dimensions are cm and weight kg -> convert into the store's units.
@@ -165,6 +198,20 @@ class SGY_Connect_Catalogue
 
             $product->set_status('publish');
             $wooId = $product->save();
+
+            // The options themselves, AFTER the parent has an id to attach them to. Variations are
+            // updated in place rather than rebuilt, so a variation id this shop's own orders point at
+            // survives, and a combination Surplus no longer sends goes out of stock instead of away.
+            if ($wantsVariations) {
+                $variableProduct = wc_get_product($wooId);
+                if ($variableProduct && $variableProduct->is_type('variable')) {
+                    $applied = SGY_Connect_Variations::apply_to_woo($variableProduct, $row, $fxRate);
+                    SGY_Connect_Logger::log('inbound', 'import', 'ok', sprintf(
+                        'surplus #%d options: %d added, %d updated, %d taken off sale',
+                        $surplusId, $applied['created'], $applied['updated'], $applied['retired']
+                    ));
+                }
+            }
 
             // Link + mirror the Surplus-owned fields to _sgy_* meta (drives the editor + gates the sync).
             update_post_meta($wooId, '_sgy_product_id', $surplusId);

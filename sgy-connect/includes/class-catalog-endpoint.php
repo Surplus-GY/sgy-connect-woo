@@ -90,8 +90,11 @@ class SGY_Connect_Catalog_Endpoint
         $category = (int) ($body['category'] ?? 0);
         $sort     = isset($body['sort']) ? (string) $body['sort'] : 'date_desc';
 
-        // MVP imports SIMPLE products (D7), so scope the list to them for accurate paging + counts.
-        $taxQuery = [['taxonomy' => 'product_type', 'field' => 'slug', 'terms' => 'simple']];
+        // Simple AND variable, matching what SGY_Connect_Importer::to_payload will actually build. The
+        // list used to be scoped to `simple` alone while the browse row was built by the same importer,
+        // so a shop selling clothing browsed an empty catalogue on Surplus and had no way to tell that
+        // it was a filter rather than an outage.
+        $taxQuery = [['taxonomy' => 'product_type', 'field' => 'slug', 'terms' => ['simple', 'variable']]];
         if ($category > 0) {
             $taxQuery[] = ['taxonomy' => 'product_cat', 'field' => 'term_id', 'terms' => $category];
         }
