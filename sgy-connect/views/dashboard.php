@@ -2,7 +2,8 @@
 /**
  * Dashboard / onboarding screen — the landing page. Walks the vendor through connecting, importing
  * either way, and confirms live sync is active. Variables from SGY_Connect_Admin::render_dashboard():
- * $configured (bool), $env (string), $webhookReady (bool), $linkedCount (int), $importedCount (int).
+ * $configured (bool), $env (string), $webhookReady (bool), $webhookError (string), $linkedCount (int),
+ * $importedCount (int).
  *
  * @package SGY_Connect
  */
@@ -70,6 +71,23 @@ $pct = (int) round(($doneCount / count($steps)) * 100);
             <span class="dashicons dashicons-update"></span>
             <?php esc_html_e('Live two-way sync is active — changes on either side update the other automatically.', 'sgy-connect'); ?>
             <a href="<?php echo esc_url(admin_url('admin.php?page=sgy-connect-logs')); ?>"><?php esc_html_e('View sync log', 'sgy-connect'); ?></a>
+        </p>
+    <?php elseif ($configured) : ?>
+        <?php
+        /*
+         * One-way only. The store can push to Surplus, but Surplus has no confirmed address to push
+         * back to, so approvals, rejections and above all "this unit has just been sold" never arrive.
+         * Saying so plainly is the whole change: the previous version printed the two-way message
+         * regardless, and a shop that quietly cannot hear about its own sales will oversell.
+         */
+        ?>
+        <p class="sgy-sync-note sgy-sync-note--warn">
+            <span class="dashicons dashicons-warning"></span>
+            <?php esc_html_e('One-way sync only. Changes here reach Surplus GY, but Surplus GY cannot reach this site, so it cannot tell you about approvals or reduce your stock when it sells one of your items.', 'sgy-connect'); ?>
+            <?php if ($webhookError !== '') : ?>
+                <br><small><?php echo esc_html(sprintf(__('Last attempt: %s', 'sgy-connect'), $webhookError)); ?></small>
+            <?php endif; ?>
+            <br><a class="button" href="<?php echo esc_url(admin_url('admin.php?page=sgy-connect-connect')); ?>"><?php esc_html_e('Test connection again', 'sgy-connect'); ?></a>
         </p>
     <?php endif; ?>
 </div>

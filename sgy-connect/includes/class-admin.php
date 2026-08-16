@@ -104,7 +104,11 @@ class SGY_Connect_Admin
     {
         $configured   = $this->client->is_configured();
         $env          = $this->client->environment();
-        $webhookReady = (bool) get_option('sgy_connect_webhook_secret');
+        // ⚠️ NOT `get_option('sgy_connect_webhook_secret')`. That option is written before the
+        // registration call and survives a refusal, so it answered "ready" for a store Surplus can
+        // send nothing to. See ensure_webhook_registered().
+        $webhookReady = self::webhook_is_registered();
+        $webhookError = (string) get_option('sgy_connect_webhook_error', '');
 
         $linked = new WP_Query(['post_type' => 'product', 'post_status' => 'any', 'meta_key' => '_sgy_product_id', 'fields' => 'ids', 'posts_per_page' => 1]);
         $linkedCount = (int) $linked->found_posts;
@@ -218,17 +222,42 @@ class SGY_Connect_Admin
         if ($res['ok']) {
             // On a successful connection, register this store's inbound callback for Surplus->store events
             // (approval + two-way stock). Generate + store a per-store webhook secret once.
-            $this->ensure_webhook_registered($client);
+            $webhookError = $this->ensure_webhook_registered($client);
             wp_send_json_success([
                 'environment' => isset($res['data']['environment']) ? $res['data']['environment'] : $client->environment(),
                 'vendor_id'   => isset($res['data']['vendor_id']) ? $res['data']['vendor_id'] : null,
-                'message'     => __('Connected to Surplus GY.', 'sgy-connect'),
+                // The connection itself is genuinely up, so this stays a success; the callback is
+                // reported alongside it rather than folded into it, because the two can differ and
+                // the vendor needs to know which half worked.
+                'webhook_ok'  => $webhookError === '',
+                'message'     => $webhookError === ''
+                    ? __('Connected to Surplus GY.', 'sgy-connect')
+                    : sprintf(
+                        /* translators: %s: the reason Surplus refused the callback URL. */
+                        __('Connected to Surplus GY, but it could not register this site for updates (%s). Products will still upload, but Surplus cannot tell this store about approvals or about stock it has already sold, so the shop can oversell. This usually means the site is not reachable from the internet on a normal https address.', 'sgy-connect'),
+                        esc_html($webhookError)
+                    ),
             ]);
         }
         wp_send_json_error(['message' => sprintf(__('Could not connect (%s). Check the key and secret.', 'sgy-connect'), esc_html($res['error']))]);
     }
 
-    /** Register (or refresh) the inbound webhook callback so Surplus can push events to this store. */
+    /**
+     * Register (or refresh) the inbound webhook callback so Surplus can push events to this store.
+     *
+     * Returns the registration error, or '' when Surplus accepted the callback.
+     *
+     * ⚠️ THE RETURN VALUE IS THE WHOLE POINT, AND IT USED NOT TO HAVE ONE. The secret is generated
+     * and saved locally BEFORE the registration call, so "a webhook secret exists" was true whether
+     * Surplus accepted the callback or refused it. The dashboard read exactly that option to decide
+     * whether to print "Live two-way sync is active", and the health check answered "Connected to
+     * Surplus GY" either way, so a store whose callback was refused was told the opposite of the
+     * truth: no approval events, no rejection events, and no order.stock_decrement, which is the one
+     * that stops the shop selling a unit Surplus has already sold. Refusal is not exotic. Surplus
+     * rejects any callback that does not resolve to a public address on port 80 or 443, so a shop on
+     * a non-standard port, on a private staging host, or briefly unresolvable fails here, and nothing
+     * ever retried because this only runs when somebody presses Test connection.
+     */
     private function ensure_webhook_registered(SGY_Connect_Client $client)
     {
         $secret = (string) get_option('sgy_connect_webhook_secret', '');
@@ -238,7 +267,26 @@ class SGY_Connect_Admin
         }
         $callback = rest_url(SGY_Connect_Webhook::ROUTE . '/events');
         $res = $client->post('/webhooks/register', ['webhook_url' => $callback, 'webhook_secret' => $secret]);
-        SGY_Connect_Logger::log('outbound', 'webhooks_register', $res['ok'] ? 'ok' : 'error', $res['ok'] ? $callback : $res['error']);
+
+        $error = $res['ok'] ? '' : (string) $res['error'];
+        update_option('sgy_connect_webhook_registered', $res['ok'] ? 'yes' : 'no', false);
+        update_option('sgy_connect_webhook_error', $error, false);
+        update_option('sgy_connect_webhook_url', $callback, false);
+
+        SGY_Connect_Logger::log('outbound', 'webhooks_register', $res['ok'] ? 'ok' : 'error', $res['ok'] ? $callback : $error);
+
+        return $error;
+    }
+
+    /**
+     * True only when Surplus has confirmed it will POST events to this store.
+     *
+     * Deliberately NOT "a webhook secret exists": see ensure_webhook_registered(). A store that has
+     * never pressed Test connection is also not ready, which is why the absent option counts as no.
+     */
+    public static function webhook_is_registered()
+    {
+        return get_option('sgy_connect_webhook_registered') === 'yes';
     }
 
     /** Import a page of products (the wizard calls this repeatedly with offset/limit). */

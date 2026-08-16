@@ -86,6 +86,10 @@
 .sgy-step-body p { margin: 4px 0 12px; color: #5b6472; }
 .sgy-sync-note { margin-top: 16px; color: #15803d; font-weight: 600; }
 .sgy-sync-note .dashicons { vertical-align: middle; }
+/* The one-way-sync warning. The wording already says "One-way sync only", so the colour and the icon
+   are reinforcement rather than the message: a reader who sees neither still gets the meaning. */
+.sgy-sync-note--warn { color: #92400e; background: #FFF6F0; border-left: 4px solid #D9531A; padding: 12px 14px; border-radius: 8px; font-weight: 500; }
+.sgy-sync-note--warn .button { margin-top: 8px; }
 
 /* ---- Import from Surplus ---- */
 .sgy-surplus-toolbar { margin: 14px 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
