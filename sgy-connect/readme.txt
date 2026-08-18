@@ -3,7 +3,7 @@ Contributors: surplusgy
 Requires at least: 6.0
 Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 0.1.0
+Stable tag: 0.6.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -44,6 +44,11 @@ versions in the usual Plugins screen. To follow the staging (pre-release) channe
 `SGY_CONNECT_BETA` as true in wp-config.php.
 
 == Changelog ==
+
+= 0.6.1 =
+* Prevents Surplus-to-WooCommerce imports and stock updates from being sent straight back to Surplus as duplicate outbound changes.
+* Restores the sync guard after an import error and keeps bulk-import progress within the reported total.
+* A save with no price edit no longer rounds a converted store price back into a slightly different Surplus price.
 
 = 0.6.0 =
 * Products with options (sizes, colours) now work properly in both directions. They used to be skipped on the way up and flattened into a single product on the way down.

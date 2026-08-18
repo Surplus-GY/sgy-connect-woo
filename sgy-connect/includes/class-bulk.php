@@ -98,20 +98,19 @@ class SGY_Connect_Bulk
         $errors = 0;
         $pairs = [];
 
-        // Suppress the Woo->Surplus echo while we write; these came FROM Surplus.
-        SGY_Connect_Sync::$suppress = true;
-        foreach ($products as $row) {
-            $result = $catalogue->import_product($row, $fx);
-            if ($result['result'] === 'error') {
-                $errors++;
-            } else {
-                $done++;
-                if (! empty($row['surplus_product_id']) && (int) $result['woo_id'] > 0) {
-                    $pairs[] = ['surplus_product_id' => (int) $row['surplus_product_id'], 'external_id' => (string) $result['woo_id']];
+        SGY_Connect_Sync::without_push(function () use ($products, $catalogue, $fx, &$done, &$errors, &$pairs) {
+            foreach ($products as $row) {
+                $result = $catalogue->import_product($row, $fx);
+                if ($result['result'] === 'error') {
+                    $errors++;
+                } else {
+                    $done++;
+                    if (! empty($row['surplus_product_id']) && (int) $result['woo_id'] > 0) {
+                        $pairs[] = ['surplus_product_id' => (int) $row['surplus_product_id'], 'external_id' => (string) $result['woo_id']];
+                    }
                 }
             }
-        }
-        SGY_Connect_Sync::$suppress = false;
+        });
 
         // One batched link call per page instead of one per product.
         if ($pairs) {
@@ -122,6 +121,7 @@ class SGY_Connect_Bulk
         if (is_array($job)) {
             $job['done'] = (int) $job['done'] + $done;
             $job['errors'] = (int) $job['errors'] + $errors;
+            $job['total'] = max((int) $job['total'], (int) $job['done'] + (int) $job['errors']);
             update_option(self::OPTION, $job, false);
         }
     }

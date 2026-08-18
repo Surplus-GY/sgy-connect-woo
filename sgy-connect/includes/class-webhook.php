@@ -73,10 +73,10 @@ class SGY_Connect_Webhook
                 // Instant Surplus -> Woo sync: (re)build the Woo product from the full payload. Suppress
                 // the plugin's own Woo -> Surplus sync while we write, so the change is not echoed back.
                 if (! empty($data['surplus_product_id'])) {
-                    SGY_Connect_Sync::$suppress = true;
                     $catalogue = new SGY_Connect_Catalogue(new SGY_Connect_Client());
-                    $result = $catalogue->import_product($data, $catalogue->current_fx_rate());
-                    SGY_Connect_Sync::$suppress = false;
+                    $result = SGY_Connect_Sync::without_push(function () use ($catalogue, $data) {
+                        return $catalogue->import_product($data, $catalogue->current_fx_rate());
+                    });
                     $logResult = 'ok';
                     if ($result['result'] === 'error') {
                         $logResult = 'error';
@@ -121,8 +121,10 @@ class SGY_Connect_Webhook
         if ((int) $product->get_stock_quantity() === $newStock) {
             return; // already in step: do nothing (breaks the echo loop)
         }
-        $product->set_stock_quantity($newStock);
-        $product->save();
+        SGY_Connect_Sync::without_push(function () use ($product, $newStock) {
+            $product->set_stock_quantity($newStock);
+            $product->save();
+        });
         SGY_Connect_Logger::log('inbound', 'order.stock_decrement', 'ok', 'product ' . $productId . ' set to ' . $newStock, $correlationId);
     }
 }

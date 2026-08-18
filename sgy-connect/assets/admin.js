@@ -239,7 +239,7 @@
                 var total = j.total || 0, done = (j.done || 0) + (j.errors || 0);
                 var pct = total ? Math.min(100, Math.round((done / total) * 100)) : 0;
                 $('#sgy-bulk-bar').css('width', pct + '%');
-                var txt = 'Imported ' + (j.done || 0) + ' of ' + total + (j.errors ? ' (' + j.errors + ' skipped)' : '');
+                var txt = 'Imported ' + Math.min(j.done || 0, total) + ' of ' + total + (j.errors ? ' (' + j.errors + ' skipped)' : '');
                 if (j.status === 'done') { txt += ' — all done.'; if (pollTimer) { clearInterval(pollTimer); } load(); }
                 else if (j.status === 'cancelled') { txt = 'Import stopped.'; if (pollTimer) { clearInterval(pollTimer); } }
                 else { txt += '…'; }

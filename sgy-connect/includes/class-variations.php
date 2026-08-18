@@ -120,16 +120,26 @@ class SGY_Connect_Variations
             $regular = $variation->get_regular_price();
             $sale = $variation->get_sale_price();
 
-            $variations[] = [
+            $payload = [
                 'options'          => $options,
-                'price'            => $regular !== '' ? $regular : $variation->get_price(),
-                // Always sent, so ENDING a sale in Woo clears it on Surplus rather than leaving
-                // yesterday's sale price as the thing the checkout charges.
-                'discounted_price' => $sale !== '' ? $sale : null,
                 'stock'            => self::stock_of($variation, $product),
                 'sku'              => $variation->get_sku(),
                 'image'            => self::image_of($variation),
             ];
+
+            $regular = $regular !== '' ? (string) $regular : (string) $variation->get_price();
+            $sale = (string) $sale;
+            $baselineRegular = get_post_meta($childId, '_sgy_import_price_store', true);
+            $baselineSale = get_post_meta($childId, '_sgy_import_sale_store', true);
+
+            if (! metadata_exists('post', $childId, '_sgy_import_price_store') || $regular !== (string) $baselineRegular) {
+                $payload['price'] = $regular;
+            }
+            if (! metadata_exists('post', $childId, '_sgy_import_sale_store') || $sale !== (string) $baselineSale) {
+                $payload['discounted_price'] = $sale !== '' ? $sale : null;
+            }
+
+            $variations[] = $payload;
         }
 
         return ['variations' => $variations, 'skipped' => $skipped];
@@ -303,6 +313,8 @@ class SGY_Connect_Variations
             }
 
             $variation->save();
+            update_post_meta($variation->get_id(), '_sgy_import_price_store', (string) $variation->get_regular_price());
+            update_post_meta($variation->get_id(), '_sgy_import_sale_store', (string) $variation->get_sale_price());
         }
 
         // ---- combinations Surplus no longer sends: taken off sale, never removed.
@@ -329,6 +341,18 @@ class SGY_Connect_Variations
         wc_delete_product_transients($product->get_id());
 
         return ['created' => $created, 'updated' => $updated, 'retired' => $retired];
+    }
+
+    public static function remember_synced_prices($product)
+    {
+        foreach ($product->get_children() as $childId) {
+            $variation = wc_get_product($childId);
+            if (! $variation) {
+                continue;
+            }
+            update_post_meta($childId, '_sgy_import_price_store', (string) $variation->get_regular_price());
+            update_post_meta($childId, '_sgy_import_sale_store', (string) $variation->get_sale_price());
+        }
     }
 
     /** The order-independent identity of a combination, matching Surplus's own VariantMap::key(). */

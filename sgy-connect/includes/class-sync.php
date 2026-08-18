@@ -19,6 +19,18 @@ class SGY_Connect_Sync
      *  is writing the product, so a change that came FROM Surplus is not pushed straight back to it. */
     public static $suppress = false;
 
+    public static function without_push($callback)
+    {
+        $previous = self::$suppress;
+        self::$suppress = true;
+
+        try {
+            return call_user_func($callback);
+        } finally {
+            self::$suppress = $previous;
+        }
+    }
+
     /** @var SGY_Connect_Client */
     private $client;
 
@@ -131,11 +143,19 @@ class SGY_Connect_Sync
             $payload['variations_complete'] = $built['skipped'] === 0;
             $payload['attributes'] = SGY_Connect_Variations::attributes_of($product);
         } else {
-            $payload['price'] = $product->get_regular_price();
             // A non-stock-managed product is unlimited: send a large in-stock quantity, not a literal 0.
             $payload['stock'] = $product->managing_stock() ? (int) $product->get_stock_quantity() : ($product->get_stock_status() === 'outofstock' ? 0 : 999998);
-            // Always send discounted_price (null clears it), so removing a Woo sale propagates to Surplus.
-            $payload['discounted_price'] = ($sale = $product->get_sale_price()) !== '' ? $sale : null;
+            $regular = (string) $product->get_regular_price();
+            $sale = (string) $product->get_sale_price();
+            $baselineRegular = get_post_meta($productId, '_sgy_import_price_store', true);
+            $baselineSale = get_post_meta($productId, '_sgy_import_sale_store', true);
+
+            if (! metadata_exists('post', $productId, '_sgy_import_price_store') || $regular !== (string) $baselineRegular) {
+                $payload['price'] = $regular;
+            }
+            if (! metadata_exists('post', $productId, '_sgy_import_sale_store') || $sale !== (string) $baselineSale) {
+                $payload['discounted_price'] = $sale !== '' ? $sale : null;
+            }
         }
 
         // The Surplus-owned panel fields (if the vendor filled them) go under 'surplus'.
@@ -154,6 +174,12 @@ class SGY_Connect_Sync
         if ($res['ok']) {
             if (isset($res['data']['missing_fields'])) {
                 update_post_meta($productId, '_sgy_missing', (array) $res['data']['missing_fields']);
+            }
+            if (SGY_Connect_Variations::is_variable($product)) {
+                SGY_Connect_Variations::remember_synced_prices($product);
+            } else {
+                update_post_meta($productId, '_sgy_import_price_store', (string) $product->get_regular_price());
+                update_post_meta($productId, '_sgy_import_sale_store', (string) $product->get_sale_price());
             }
             SGY_Connect_Logger::log('outbound', 'sync', 'ok', 'product ' . $productId . ' synced', isset($res['data']['correlation_id']) ? $res['data']['correlation_id'] : '');
         } else {

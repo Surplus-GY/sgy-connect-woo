@@ -217,6 +217,10 @@ class SGY_Connect_Catalogue
             update_post_meta($wooId, '_sgy_product_id', $surplusId);
             update_post_meta($wooId, '_sgy_state', $isNew ? 'imported' : 'updated');
             update_post_meta($wooId, '_sgy_source', 'surplus');
+            if (! $wantsVariations) {
+                update_post_meta($wooId, '_sgy_import_price_store', (string) $product->get_regular_price());
+                update_post_meta($wooId, '_sgy_import_sale_store', (string) $product->get_sale_price());
+            }
             foreach ([
                 'category_id'            => 'category_id',
                 'country_of_manufacture' => 'country_of_manufacture',
@@ -251,9 +255,9 @@ class SGY_Connect_Catalogue
      */
     public function import_and_link(array $row, $fxRate = 0.0)
     {
-        SGY_Connect_Sync::$suppress = true;
-        $result = $this->import_product($row, $fxRate);
-        SGY_Connect_Sync::$suppress = false;
+        $result = SGY_Connect_Sync::without_push(function () use ($row, $fxRate) {
+            return $this->import_product($row, $fxRate);
+        });
 
         if ($result['result'] !== 'error' && (int) $result['woo_id'] > 0 && ! empty($row['surplus_product_id'])) {
             $link = $this->client->post('/catalogue/link', [
