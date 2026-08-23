@@ -16,6 +16,59 @@ class SGY_Connect_Webhook
 {
     const ROUTE = 'sgy-connect/v1';
 
+    /**
+     * The callback URL Surplus should POST events to for this store.
+     *
+     * Built with rest_url() rather than a hand-assembled path so it matches whatever permalink
+     * structure the site actually has.
+     */
+    public static function callback_url()
+    {
+        return rest_url(self::ROUTE . '/events');
+    }
+
+    /**
+     * Register (or refresh) this store's inbound callback with Surplus.
+     *
+     * Returns the registration error, or '' when Surplus accepted the callback.
+     *
+     * ⚠️ THE RETURN VALUE IS THE WHOLE POINT, AND IT USED NOT TO HAVE ONE. The secret is generated and
+     * saved locally BEFORE the registration call, so "a webhook secret exists" was true whether Surplus
+     * accepted the callback or refused it. The dashboard read exactly that option to decide whether to
+     * print "Live two-way sync is active", and the health check answered "Connected to Surplus GY"
+     * either way, so a store whose callback was refused was told the opposite of the truth: no approval
+     * events, no rejection events, and no order.stock_decrement, which is the one that stops the shop
+     * selling a unit Surplus has already sold. Refusal is not exotic. Surplus rejects any callback that
+     * does not resolve to a public address on port 80 or 443, so a shop on a non-standard port, on a
+     * private staging host, or briefly unresolvable fails here.
+     *
+     * ⚠️ LIVES HERE, NOT ON THE ADMIN SCREEN, and that move is what made `wp sgy connect` possible.
+     * It was a private method behind the admin's AJAX handler, so the ONLY way to connect a store was
+     * for a human to press a button in wp-admin: a shopkeeper who scripts their setup, or anyone
+     * automating a test environment, could not connect at all. The receiver is the right owner anyway,
+     * since it already knows its own route and verifies signatures with this same secret.
+     */
+    public static function ensure_registered(SGY_Connect_Client $client)
+    {
+        $secret = (string) get_option('sgy_connect_webhook_secret', '');
+        if ($secret === '') {
+            $secret = wp_generate_password(48, false, false);
+            update_option('sgy_connect_webhook_secret', $secret, false);
+        }
+
+        $callback = self::callback_url();
+        $res = $client->post('/webhooks/register', ['webhook_url' => $callback, 'webhook_secret' => $secret]);
+
+        $error = $res['ok'] ? '' : (string) $res['error'];
+        update_option('sgy_connect_webhook_registered', $res['ok'] ? 'yes' : 'no', false);
+        update_option('sgy_connect_webhook_error', $error, false);
+        update_option('sgy_connect_webhook_url', $callback, false);
+
+        SGY_Connect_Logger::log('outbound', 'webhooks_register', $res['ok'] ? 'ok' : 'error', $res['ok'] ? $callback : $error);
+
+        return $error;
+    }
+
     public function register()
     {
         add_action('rest_api_init', function () {

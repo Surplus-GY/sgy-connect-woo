@@ -247,35 +247,18 @@ class SGY_Connect_Admin
      *
      * Returns the registration error, or '' when Surplus accepted the callback.
      *
-     * ⚠️ THE RETURN VALUE IS THE WHOLE POINT, AND IT USED NOT TO HAVE ONE. The secret is generated
-     * and saved locally BEFORE the registration call, so "a webhook secret exists" was true whether
-     * Surplus accepted the callback or refused it. The dashboard read exactly that option to decide
-     * whether to print "Live two-way sync is active", and the health check answered "Connected to
-     * Surplus GY" either way, so a store whose callback was refused was told the opposite of the
-     * truth: no approval events, no rejection events, and no order.stock_decrement, which is the one
-     * that stops the shop selling a unit Surplus has already sold. Refusal is not exotic. Surplus
-     * rejects any callback that does not resolve to a public address on port 80 or 443, so a shop on
-     * a non-standard port, on a private staging host, or briefly unresolvable fails here, and nothing
-     * ever retried because this only runs when somebody presses Test connection.
+     * ⚠️ The implementation moved to SGY_Connect_Webhook::ensure_registered() so `wp sgy connect` can
+     * perform the SAME registration. It used to live here as a private method, which meant the only
+     * way to connect a store was a human pressing Test connection in wp-admin. Kept as a thin
+     * delegation rather than replaced at the call site, because the reasoning about what a refused
+     * callback means to a vendor belongs with the screen that reports it.
+     *
+     * ⚠️ Nothing here retries: this only runs when somebody presses Test connection, or now when
+     * somebody runs the CLI command.
      */
     private function ensure_webhook_registered(SGY_Connect_Client $client)
     {
-        $secret = (string) get_option('sgy_connect_webhook_secret', '');
-        if ($secret === '') {
-            $secret = wp_generate_password(48, false, false);
-            update_option('sgy_connect_webhook_secret', $secret, false);
-        }
-        $callback = rest_url(SGY_Connect_Webhook::ROUTE . '/events');
-        $res = $client->post('/webhooks/register', ['webhook_url' => $callback, 'webhook_secret' => $secret]);
-
-        $error = $res['ok'] ? '' : (string) $res['error'];
-        update_option('sgy_connect_webhook_registered', $res['ok'] ? 'yes' : 'no', false);
-        update_option('sgy_connect_webhook_error', $error, false);
-        update_option('sgy_connect_webhook_url', $callback, false);
-
-        SGY_Connect_Logger::log('outbound', 'webhooks_register', $res['ok'] ? 'ok' : 'error', $res['ok'] ? $callback : $error);
-
-        return $error;
+        return SGY_Connect_Webhook::ensure_registered($client);
     }
 
     /**

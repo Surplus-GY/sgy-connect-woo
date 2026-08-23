@@ -3,7 +3,7 @@ Contributors: surplusgy
 Requires at least: 6.0
 Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 0.6.1
+Stable tag: 0.6.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -44,6 +44,11 @@ versions in the usual Plugins screen. To follow the staging (pre-release) channe
 `SGY_CONNECT_BETA` as true in wp-config.php.
 
 == Changelog ==
+
+= 0.6.2 =
+* Adds `wp sgy connect`, so a store can be connected from the command line instead of only by pressing Test connection in the dashboard. Useful if you script your setup, or run more than one shop.
+* It saves the key and secret if you pass them, checks they work, and registers this site to receive updates from Surplus GY, which is the step that was previously impossible to do outside the dashboard.
+* It tells you separately whether updates from Surplus GY are working, because a store can upload products perfectly well while being unable to receive anything back, and a shop in that state can sell stock that has already gone.
 
 = 0.6.1 =
 * Prevents Surplus-to-WooCommerce imports and stock updates from being sent straight back to Surplus as duplicate outbound changes.
