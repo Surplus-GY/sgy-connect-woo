@@ -14,10 +14,19 @@ permissions:
 
 jobs:
   build:
-    # Self-hosted, not ubuntu-latest: GitHub-HOSTED jobs fail across this whole org while the Actions
-    # billing block is in place, so a hosted runner would never produce a release at all. The staging
-    # box already runs every other build in the org.
-    runs-on: [self-hosted, staging]
+    # ⚠️ HOSTED, AND IT HAS TO BE. This said self-hosted because GitHub-hosted jobs failed across the
+    # org while the Actions billing block was in place. That block was cleared on 2026-08-23, and the
+    # self-hosted choice had meanwhile become a silent dead end: `sgy-connect-woo` is a PUBLIC repo,
+    # and the org's Default runner group sets allows_public_repositories=false, so a
+    # `runs-on: [self-hosted, staging]` job is never picked up by any runner. It simply queues until it
+    # expires, which is what v0.6.1 did for half an hour with two idle, label-matching runners sitting
+    # right there.
+    #
+    # ⚠️ DO NOT "FIX" THIS BY ALLOWING PUBLIC REPOSITORIES ON THE RUNNER GROUP. That setting is the
+    # thing stopping anyone's fork pull request from executing arbitrary code on the staging EC2, which
+    # runs the marketplace, the eco apps, nodesrv and the org's own CI runner. Building a public
+    # release zip on a hosted runner is the normal arrangement and costs nothing here.
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
